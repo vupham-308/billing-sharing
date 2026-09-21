@@ -4,6 +4,7 @@ import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Nationalized;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -48,7 +49,8 @@ public class PaymentRequest {
     @Column(name = "status", nullable = false)
     private PaymentRequestStatus status;
 
-    @Column(name = "note")
+    @Nationalized
+    @Column(name = "note", columnDefinition = "NVARCHAR(500)")
     private String note;
 
     @Column(name = "debtor_confirmed_at")

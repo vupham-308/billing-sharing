@@ -3,6 +3,7 @@ package com.kai.billingsharing.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Nationalized;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -33,13 +34,15 @@ public class PaymentInfo {
     @Column(name = "bank_code", nullable = false)
     private String bankCode;
 
-    @Column(name = "bank_name")
+    @Nationalized
+    @Column(name = "bank_name", columnDefinition = "NVARCHAR(255)")
     private String bankName;
 
     @Column(name = "account_number", nullable = false)
     private String accountNumber;
 
-    @Column(name = "account_holder_name", nullable = false)
+    @Nationalized
+    @Column(name = "account_holder_name", nullable = false, columnDefinition = "NVARCHAR(255)")
     private String accountHolderName;
 
     @CreationTimestamp

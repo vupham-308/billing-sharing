@@ -551,7 +551,7 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
                 value={accountHolderName}
                 onChange={(e) => {
                   setIsHolderTouched(true);
-                  setAccountHolderName(e.target.value.toUpperCase());
+                  setAccountHolderName(removeVietnameseTones(e.target.value));
                 }}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />

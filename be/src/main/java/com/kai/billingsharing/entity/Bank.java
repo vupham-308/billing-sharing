@@ -3,6 +3,7 @@ package com.kai.billingsharing.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Nationalized;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -27,10 +28,12 @@ public class Bank {
     @Column(name = "code", nullable = false, unique = true, length = 20)
     private String code;
 
-    @Column(name = "name", nullable = false, length = 150)
+    @Nationalized
+    @Column(name = "name", nullable = false, length = 150, columnDefinition = "NVARCHAR(150)")
     private String name;
 
-    @Column(name = "short_name", length = 100)
+    @Nationalized
+    @Column(name = "short_name", length = 100, columnDefinition = "NVARCHAR(100)")
     private String shortName;
 
     @Column(name = "is_active", nullable = false)

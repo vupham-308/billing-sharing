@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, LogIn, UserPlus, AlertCircle, CreditCard, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { VIETNAM_BANKS } from "../../services/vietnamBanks";
+import { bankApi } from "../../services/api";
 
 function removeVietnameseTones(str) {
   return str
@@ -211,7 +211,7 @@ export default function AuthModal({ isOpen, onClose }) {
                   value={accountHolderName}
                   onChange={(e) => {
                     setIsHolderTouched(true);
-                    setAccountHolderName(e.target.value.toUpperCase());
+                    setAccountHolderName(removeVietnameseTones(e.target.value));
                   }}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />

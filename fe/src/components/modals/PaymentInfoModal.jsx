@@ -2,6 +2,15 @@ import React, { useState, useEffect } from "react";
 import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle } from "lucide-react";
 import { bankApi } from "../../services/api";
 
+function removeVietnameseTones(str) {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "D")
+    .toUpperCase();
+}
+
 export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave, isForceSetup = false }) {
   const [banks, setBanks] = useState([]);
   const [isLoadingBanks, setIsLoadingBanks] = useState(false);
@@ -174,13 +183,13 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Tên chủ tài khoản (In hoa không dấu)
             </label>
-            <input
-              type="text"
-              placeholder="VD: NGUYEN VAN A"
-              value={accountHolderName}
-              onChange={(e) => setAccountHolderName(e.target.value.toUpperCase())}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
+              <input
+                type="text"
+                placeholder="VD: NGUYEN VAN A"
+                value={accountHolderName}
+                onChange={(e) => setAccountHolderName(removeVietnameseTones(e.target.value))}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
