@@ -17,7 +17,7 @@ public class GroupDetailResponse {
 
     private UUID id;
     private String name;
-    private Integer summaryDayOfMonth;
+    private List<Integer> summaryDayOfMonth;
     private UserResponse createdBy;
     private List<GroupMemberResponse> members;
     private LocalDateTime createdAt;

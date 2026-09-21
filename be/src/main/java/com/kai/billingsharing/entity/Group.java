@@ -7,6 +7,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -27,8 +28,11 @@ public class Group {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "summary_day_of_month")
-    private Integer summaryDayOfMonth;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "group_summary_days", joinColumns = @JoinColumn(name = "group_id"))
+    @Column(name = "day_of_month")
+    @Builder.Default
+    private List<Integer> summaryDayOfMonth = new java.util.ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id", nullable = false)

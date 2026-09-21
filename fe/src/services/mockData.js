@@ -1,4 +1,4 @@
-﻿export const MOCK_PAYMENT_INFO = {
+export const MOCK_PAYMENT_INFO = {
   id: "pi-01",
   bankCode: "MB",
   accountNumber: "0345678999",
@@ -10,7 +10,7 @@ export const MOCK_GROUPS = [
     id: "g-01",
     name: "Chuyến đi Đà Lạt 3N2Đ",
     description: "Chi phí khách sạn, ăn uống, xăng xe di chuyển",
-    summaryDayOfMonth: 25,
+    summaryDayOfMonth: [25],
     myBalance: 220000,
     memberCount: 4,
     members: [
@@ -24,7 +24,7 @@ export const MOCK_GROUPS = [
     id: "g-02",
     name: "Ăn trưa & Cafe Công ty",
     description: "Quỹ ăn trưa hàng ngày team công nghệ",
-    summaryDayOfMonth: 30,
+    summaryDayOfMonth: [15, 30],
     myBalance: -60000,
     memberCount: 5,
     members: [
@@ -39,7 +39,7 @@ export const MOCK_GROUPS = [
     id: "g-03",
     name: "Căn hộ Landmark 81 - P.1204",
     description: "Tiền điện, nước, internet, rác và nhu yếu phẩm phòng",
-    summaryDayOfMonth: 5,
+    summaryDayOfMonth: [5],
     myBalance: 180000,
     memberCount: 3,
     members: [

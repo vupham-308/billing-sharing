@@ -1,14 +1,32 @@
-﻿import React, { useState } from "react";
-import { X, Users, Calendar, AlertCircle } from "lucide-react";
+import React, { useState } from "react";
+import { X, Users, Calendar, AlertCircle, Check } from "lucide-react";
 
 export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [summaryDayOfMonth, setSummaryDayOfMonth] = useState(25);
+  const [selectedDays, setSelectedDays] = useState([25]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  const toggleDay = (day) => {
+    if (selectedDays.includes(day)) {
+      if (selectedDays.length === 1) {
+        setError("Nhóm phải có ít nhất 1 ngày chốt sao kê");
+        return;
+      }
+      setSelectedDays(selectedDays.filter((d) => d !== day));
+    } else {
+      setSelectedDays([...selectedDays, day].sort((a, b) => a - b));
+    }
+    setError("");
+  };
+
+  const applyPreset = (days) => {
+    setSelectedDays(days);
+    setError("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,9 +36,8 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
       setError("Vui lòng nhập tên nhóm chi tiêu");
       return;
     }
-    const day = parseInt(summaryDayOfMonth, 10);
-    if (isNaN(day) || day < 1 || day > 31) {
-      setError("Ngày chốt sao kê phải từ ngày 1 đến ngày 31 hàng tháng");
+    if (selectedDays.length === 0) {
+      setError("Vui lòng chọn ít nhất 1 ngày chốt sao kê trong tháng");
       return;
     }
 
@@ -29,7 +46,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
       await onSubmit({
         name: name.trim(),
         description: description.trim(),
-        summaryDayOfMonth: day,
+        summaryDayOfMonth: selectedDays,
       });
       onClose();
     } catch (err) {
@@ -41,7 +58,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
@@ -93,29 +110,64 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
             />
           </div>
 
+          {/* Chọn ngày chốt sao kê (Multi-select) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Ngày chốt sao kê hàng tháng
               </label>
-              <span className="text-xs font-bold text-indigo-600">Ngày {summaryDayOfMonth}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="1"
-                max="31"
-                value={summaryDayOfMonth}
-                onChange={(e) => setSummaryDayOfMonth(parseInt(e.target.value, 10))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-              />
-              <span className="w-10 text-center font-bold text-sm bg-slate-100 py-1 rounded-lg border border-slate-200">
-                {summaryDayOfMonth}
+              <span className="text-xs font-bold text-indigo-600">
+                {selectedDays.length > 0 ? `Ngày ${selectedDays.join(", ")}` : "Chưa chọn ngày"}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-slate-400" />
-              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:00 sáng ngày này.</span>
+
+            {/* Quick presets */}
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {[
+                { label: "Ngày 25", days: [25] },
+                { label: "Ngày 15 & 30", days: [15, 30] },
+                { label: "Ngày 1 & 15", days: [1, 15] },
+                { label: "Ngày 10, 20 & 30", days: [10, 20, 30] },
+              ].map((preset) => (
+                <button
+                  type="button"
+                  key={preset.label}
+                  onClick={() => applyPreset(preset.days)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all ${
+                    JSON.stringify(selectedDays) === JSON.stringify(preset.days)
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Grid 31 days picker */}
+            <div className="grid grid-cols-7 gap-1 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                const isSelected = selectedDays.includes(d);
+                return (
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => toggleDay(d)}
+                    className={`h-7 rounded-lg text-xs font-semibold transition-all flex items-center justify-center ${
+                      isSelected
+                        ? "bg-indigo-600 text-white shadow-xs scale-95"
+                        : "text-slate-700 hover:bg-white hover:text-indigo-600 hover:shadow-2xs"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:00 sáng vào các ngày đã chọn.</span>
             </p>
           </div>
 

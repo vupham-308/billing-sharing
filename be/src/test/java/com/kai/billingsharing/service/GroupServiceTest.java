@@ -73,13 +73,13 @@ class GroupServiceTest {
     void testCreateGroup_Success() {
         CreateGroupRequest request = CreateGroupRequest.builder()
                 .name("Nhóm Du Lịch")
-                .summaryDayOfMonth(25)
+                .summaryDayOfMonth(List.of(25))
                 .build();
 
         Group savedGroup = Group.builder()
                 .id(UUID.randomUUID())
                 .name("Nhóm Du Lịch")
-                .summaryDayOfMonth(25)
+                .summaryDayOfMonth(List.of(25))
                 .createdBy(adminUser)
                 .build();
 
@@ -90,7 +90,7 @@ class GroupServiceTest {
 
         assertNotNull(response);
         assertEquals("Nhóm Du Lịch", response.getName());
-        assertEquals(25, response.getSummaryDayOfMonth());
+        assertEquals(List.of(25), response.getSummaryDayOfMonth());
         assertEquals(adminUser.getId(), response.getCreatedById());
         assertEquals(0L, response.getMyBalanceInGroup());
 

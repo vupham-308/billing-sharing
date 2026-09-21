@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Users, Calendar, ArrowRight, Plus, FolderKanban } from "lucide-react";
 import { formatVND } from "../utils/formatters";
 
@@ -75,11 +75,11 @@ export default function GroupList({ groups = [], selectedGroupId, onSelectGroup,
                 </h3>
                 {group.summaryDayOfMonth && (
                   <span
-                    title={`Chốt sao kê và gửi mail vào ngày ${group.summaryDayOfMonth} hàng tháng`}
+                    title={`Chốt sao kê và gửi mail vào ngày ${Array.isArray(group.summaryDayOfMonth) ? group.summaryDayOfMonth.join(", ") : group.summaryDayOfMonth} hàng tháng`}
                     className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"
                   >
                     <Calendar className="w-3 h-3 text-slate-500" />
-                    <span>Ngày {group.summaryDayOfMonth}</span>
+                    <span>Ngày {Array.isArray(group.summaryDayOfMonth) ? group.summaryDayOfMonth.join(", ") : group.summaryDayOfMonth}</span>
                   </span>
                 )}
               </div>

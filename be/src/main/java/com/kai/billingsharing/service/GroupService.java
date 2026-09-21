@@ -36,10 +36,17 @@ public class GroupService {
     @Transactional
     public GroupResponse createGroup(CreateGroupRequest request, CustomUserDetails currentUser) {
         User creator = currentUser.getUser();
+        List<Integer> summaryDays = (request.getSummaryDayOfMonth() != null && !request.getSummaryDayOfMonth().isEmpty())
+                ? request.getSummaryDayOfMonth().stream()
+                        .filter(d -> d != null && d >= 1 && d <= 31)
+                        .distinct()
+                        .sorted()
+                        .toList()
+                : List.of(25);
 
         Group group = Group.builder()
                 .name(request.getName().trim())
-                .summaryDayOfMonth(request.getSummaryDayOfMonth())
+                .summaryDayOfMonth(summaryDays)
                 .createdBy(creator)
                 .build();
 

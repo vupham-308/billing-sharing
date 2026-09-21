@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -16,7 +17,7 @@ public class GroupResponse {
 
     private UUID id;
     private String name;
-    private Integer summaryDayOfMonth;
+    private List<Integer> summaryDayOfMonth;
     private UUID createdById;
     private String createdByName;
     private Long myBalanceInGroup;
