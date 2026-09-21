@@ -1,0 +1,15 @@
+﻿export const VIETNAM_BANKS = [
+  { code: "MB", name: "MB Bank (Ngân hàng Quân Đội)" },
+  { code: "VCB", name: "Vietcombank (Ngoại thương Việt Nam)" },
+  { code: "TCB", name: "Techcombank (Kỹ thương Việt Nam)" },
+  { code: "VPB", name: "VPBank (Việt Nam Thịnh Vượng)" },
+  { code: "ACB", name: "ACB (Á Châu)" },
+  { code: "TPB", name: "TPBank (Tiên Phong)" },
+  { code: "BIDV", name: "BIDV (Đầu tư và Phát triển)" },
+  { code: "ICB", name: "VietinBank (Công thương Việt Nam)" },
+  { code: "VIB", name: "VIB (Quốc Tế)" },
+  { code: "STB", name: "Sacombank (Sài Gòn Thương Tín)" },
+  { code: "OCB", name: "OCB (Phương Đông)" },
+  { code: "MSB", name: "MSB (Hàng Hải)" },
+  { code: "VBA", name: "Agribank (Nông nghiệp & PTNT)" },
+];
