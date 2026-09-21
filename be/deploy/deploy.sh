@@ -35,21 +35,50 @@ docker rm "$CONTAINER_NAME" 2>/dev/null || true
 ENV_FILE_FLAG=""
 if [ -f "$APP_DIR/.env" ]; then
   ENV_FILE_FLAG="--env-file $APP_DIR/.env"
+  echo "-> Đã nạp file .env thành công."
+else
+  echo "-> CẢNH BÁO: Chưa tìm thấy file $APP_DIR/.env. Hãy tạo file .env để cấu hình kết nối DB!"
 fi
 
+# Chạy container với:
+# - Giới hạn RAM tối đa 768m và CPU 1.2 core để tránh nghẽn VPS
+# - --restart on-failure:5 để chống crash-loop vô tận đốt 100% CPU
+# - -XX:+UseSerialGC và -Xms128m -Xmx384m để tối ưu tuyệt đối cho VPS ít tài nguyên
 docker run -d \
   --name "$CONTAINER_NAME" \
-  --restart always \
+  --restart on-failure:5 \
+  --memory="768m" \
+  --cpus="1.2" \
   --net=host \
   $ENV_FILE_FLAG \
   -v "$APP_DIR":/app \
   eclipse-temurin:17-jre \
-  java -Xms512m -Xmx1536m -jar /app/"$JAR_NAME" --server.port=9000
+  java -Xms128m -Xmx384m -XX:+UseSerialGC -jar /app/"$JAR_NAME" --server.port=9000
 
+echo "4. Đang chờ ứng dụng khởi động và kiểm tra sức khỏe..."
+READY=0
+for i in {1..10}; do
+  sleep 3
+  STATUS=$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "unknown")
+  if [ "$STATUS" != "running" ]; then
+    echo "LỖI: Container bị dừng hoặc crash (Status: $STATUS). Log chi tiết:"
+    docker logs --tail 40 "$CONTAINER_NAME"
+    exit 1
+  fi
 
-sleep 6
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/api/v1/auth/me || echo "000")
+  if [ "$HTTP_CODE" != "000" ]; then
+    echo "-> Backend phản hồi HTTP Status: $HTTP_CODE (Sẵn sàng sau $((i*3))s)"
+    READY=1
+    break
+  fi
+  echo "   Đang chờ Spring Boot khởi động ($((i*3))s)..."
+done
+
 docker ps --filter "name=$CONTAINER_NAME"
 
-echo "4. Kiểm tra sức khỏe Backend (Port 9000)..."
-curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost:9000/api/v1/auth/me || true
-echo "Deploy Backend hoàn tất!"
+if [ $READY -eq 1 ]; then
+  echo "Deploy Backend hoàn tất thành công!"
+else
+  echo "Cảnh báo: Backend mất nhiều thời gian hơn để phản hồi. Kiểm tra log bằng: docker logs -f $CONTAINER_NAME"
+fi

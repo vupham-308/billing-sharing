@@ -69,20 +69,45 @@ jobs:
               ENV_FILE_FLAG="--env-file /home/ubuntu/app/billing-sharing/.env"
             fi
 
-            # Khởi chạy container với port 9000 và nạp biến môi trường cô lập riêng biệt
+            # Khởi chạy container tối ưu tài nguyên cho VPS:
+            # - Giới hạn RAM 768m, CPU 1.2 core
+            # - --restart on-failure:5 chống crash-loop vô tận
+            # - -XX:+UseSerialGC và -Xms128m -Xmx384m tiết kiệm CPU & RAM tối đa
             docker run -d \
               --name billing-sharing-backend \
-              --restart always \
+              --restart on-failure:5 \
+              --memory="768m" \
+              --cpus="1.2" \
               --net=host \
               $ENV_FILE_FLAG \
               -v /home/ubuntu/app/billing-sharing:/app \
               eclipse-temurin:17-jre \
-              java -Xms512m -Xmx1536m -jar /app/billing-sharing.jar --server.port=9000
-
-
-            sleep 6
-            docker ps --filter "name=billing-sharing-backend"
+              java -Xms128m -Xmx384m -XX:+UseSerialGC -jar /app/billing-sharing.jar --server.port=9000
 
             echo "3. Kiểm tra sức khỏe Backend (Port 9000)..."
-            curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost:9000/api/v1/auth/me || true
-            echo "Triển khai Backend lên VPS Oracle ở cổng 9000 hoàn tất!"
+            READY=0
+            for i in {1..10}; do
+              sleep 3
+              STATUS=$(docker inspect -f '{{.State.Status}}' billing-sharing-backend 2>/dev/null || echo "unknown")
+              if [ "$STATUS" != "running" ]; then
+                echo "LỖI: Container bị dừng hoặc crash (Status: $STATUS). Log chi tiết:"
+                docker logs --tail 40 billing-sharing-backend
+                exit 1
+              fi
+
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/api/v1/auth/me || echo "000")
+              if [ "$HTTP_CODE" != "000" ]; then
+                echo "-> Backend phản hồi HTTP Status: $HTTP_CODE (Sẵn sàng sau $((i*3))s)"
+                READY=1
+                break
+              fi
+              echo "   Đang chờ Spring Boot sẵn sàng ($((i*3))s)..."
+            done
+
+            docker ps --filter "name=billing-sharing-backend"
+
+            if [ $READY -eq 1 ]; then
+              echo "Triển khai Backend lên VPS Oracle ở cổng 9000 hoàn tất!"
+            else
+              echo "Cảnh báo: Backend cần thêm thời gian để sẵn sàng. Kiểm tra log bằng: docker logs -f billing-sharing-backend"
+            fi
