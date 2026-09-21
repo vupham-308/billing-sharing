@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy Spring Boot (Port 9000)
+    name: Build & Deploy Spring Boot (Port 6969)
     runs-on: ubuntu-latest
 
     steps:
@@ -59,32 +59,39 @@ jobs:
             fi
             chmod +x billing-sharing.jar
 
-            echo "2. Khởi động lại container billing-sharing-backend (Port 9000)..."
+            echo "2. Khởi động lại container billing-sharing-backend (Port 6969)..."
             # Dừng và xóa container cũ để luôn áp dụng cấu hình mới nhất
             docker stop billing-sharing-backend 2>/dev/null || true
             docker rm billing-sharing-backend 2>/dev/null || true
 
+            APP_PORT=6969
             ENV_FILE_FLAG=""
             if [ -f /home/ubuntu/app/billing-sharing/.env ]; then
               ENV_FILE_FLAG="--env-file /home/ubuntu/app/billing-sharing/.env"
+              ENV_PORT=$(grep -E '^[[:space:]]*SERVER_PORT=' /home/ubuntu/app/billing-sharing/.env | cut -d '=' -f2 | tr -d '\r"' | xargs || true)
+              if [ -n "$ENV_PORT" ]; then
+                APP_PORT="$ENV_PORT"
+              fi
             fi
 
+            echo "-> Port Backend sử dụng: $APP_PORT"
+
             # Khởi chạy container tối ưu tài nguyên cho VPS:
-            # - Giới hạn RAM 768m, CPU 1.2 core
-            # - --restart on-failure:5 chống crash-loop vô tận
+            # - Giới hạn RAM 768m, CPU 0.5 core
+            # - --restart on-failure:1 chỉ thử lại đúng 1 lần duy nhất nếu lỗi
             # - -XX:+UseSerialGC và -Xms128m -Xmx384m tiết kiệm CPU & RAM tối đa
             docker run -d \
               --name billing-sharing-backend \
-              --restart on-failure:5 \
+              --restart on-failure:1 \
               --memory="768m" \
-              --cpus="1.2" \
+              --cpus="0.5" \
               --net=host \
               $ENV_FILE_FLAG \
               -v /home/ubuntu/app/billing-sharing:/app \
               eclipse-temurin:17-jre \
-              java -Xms128m -Xmx384m -XX:+UseSerialGC -jar /app/billing-sharing.jar --server.port=9000
+              java -Xms128m -Xmx384m -XX:+UseSerialGC -jar /app/billing-sharing.jar --server.port="$APP_PORT"
 
-            echo "3. Kiểm tra sức khỏe Backend (Port 9000)..."
+            echo "3. Kiểm tra sức khỏe Backend (Port $APP_PORT)..."
             READY=0
             for i in {1..10}; do
               sleep 3
@@ -95,7 +102,7 @@ jobs:
                 exit 1
               fi
 
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/api/v1/auth/me || echo "000")
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${APP_PORT}/api/v1/auth/me" || echo "000")
               if [ "$HTTP_CODE" != "000" ]; then
                 echo "-> Backend phản hồi HTTP Status: $HTTP_CODE (Sẵn sàng sau $((i*3))s)"
                 READY=1
@@ -107,7 +114,7 @@ jobs:
             docker ps --filter "name=billing-sharing-backend"
 
             if [ $READY -eq 1 ]; then
-              echo "Triển khai Backend lên VPS Oracle ở cổng 9000 hoàn tất!"
+              echo "Triển khai Backend lên VPS Oracle ở cổng $APP_PORT hoàn tất!"
             else
               echo "Cảnh báo: Backend cần thêm thời gian để sẵn sàng. Kiểm tra log bằng: docker logs -f billing-sharing-backend"
             fi
