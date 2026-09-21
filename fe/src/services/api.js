@@ -1,4 +1,5 @@
 import axios from "axios";
+import { cookieUtils } from "../utils/cookie";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.kaidz.xyz/api/v1";
 
@@ -7,12 +8,13 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
-// Gắn JWT token vào Header của mọi request nếu có
+// Gắn JWT token đọc từ Cookie vào Header của mọi request nếu có
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = cookieUtils.get("token") || localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,6 +28,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
+      cookieUtils.remove("token");
       localStorage.removeItem("token");
       window.dispatchEvent(new Event("auth:unauthorized"));
     }
@@ -36,6 +39,8 @@ api.interceptors.response.use(
 export const authApi = {
   login: (credentials) => api.post("/auth/login", credentials).then((res) => res.data),
   register: (data) => api.post("/auth/register", data).then((res) => res.data),
+  verifyEmail: (token) => api.post("/auth/verify-email", { token }).then((res) => res.data),
+  resendVerification: (email) => api.post("/auth/resend-verification", { email }).then((res) => res.data),
   getMe: () => api.get("/auth/me").then((res) => res.data),
   forgotPassword: (email) => api.post("/auth/forgot-password", { email }).then((res) => res.data),
   resetPassword: (data) => api.post("/auth/reset-password", data).then((res) => res.data),

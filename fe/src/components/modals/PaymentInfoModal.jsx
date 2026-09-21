@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle } from "lucide-react";
 import { bankApi } from "../../services/api";
+import BankSelect from "../common/BankSelect";
 
 function removeVietnameseTones(str) {
   if (!str) return "";
@@ -148,22 +149,13 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Ngân hàng thụ hưởng
             </label>
-            <select
+            <BankSelect
+              banks={banks}
               value={bankCode}
-              onChange={(e) => setBankCode(e.target.value)}
+              onChange={setBankCode}
               disabled={isLoadingBanks}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            >
-              {isLoadingBanks && <option value="">Đang tải danh sách ngân hàng...</option>}
-              {!isLoadingBanks && banks.length === 0 && (
-                <option value="">Chưa có dữ liệu ngân hàng trong hệ thống</option>
-              )}
-              {banks.map((b) => (
-                <option key={b.code} value={b.code}>
-                  {b.code} - {b.name}
-                </option>
-              ))}
-            </select>
+              placeholder={isLoadingBanks ? "Đang tải danh sách ngân hàng..." : "Chọn ngân hàng thụ hưởng"}
+            />
           </div>
 
           <div>

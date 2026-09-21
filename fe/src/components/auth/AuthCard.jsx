@@ -11,9 +11,13 @@ import {
   EyeOff,
   ArrowRight,
   ArrowLeft,
+  MailCheck,
+  Send,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { authApi, bankApi } from "../../services/api";
+import BankSelect from "../common/BankSelect";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -55,6 +59,13 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Email verification states
+  const [registeredPendingEmail, setRegisteredPendingEmail] = useState("");
+  const [unverifiedLoginEmail, setUnverifiedLoginEmail] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendSuccessMsg, setResendSuccessMsg] = useState("");
+  const [isResending, setIsResending] = useState(false);
+
   // Nạp danh sách ngân hàng từ Database qua API (Tuyệt đối không dùng fallback tĩnh)
   useEffect(() => {
     let isCancelled = false;
@@ -91,10 +102,37 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
   const handleSwitchMode = (newMode) => {
     setError("");
     setSuccessMessage("");
+    setResendSuccessMsg("");
+    setUnverifiedLoginEmail("");
     setMode(newMode);
     setRegisterStep(1);
     setShowPassword(false);
     setShowConfirmPassword(false);
+  };
+
+  const handleResendVerification = async (targetEmail) => {
+    if (!targetEmail) return;
+    setIsResending(true);
+    setResendSuccessMsg("");
+    setError("");
+    try {
+      const res = await authApi.resendVerification(targetEmail.trim());
+      setResendSuccessMsg(res.message || "Đã gửi lại email kích hoạt! Vui lòng kiểm tra hộp thư của bạn.");
+      setResendCountdown(60);
+      const timer = setInterval(() => {
+        setResendCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "Không thể gửi lại email kích hoạt.");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   // Xử lý xác thực khi nhận credential (ID token) từ Google Identity Services
@@ -270,6 +308,8 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
         const res = await register(name.trim(), email.trim(), password, bankPayload);
         if (!res.success) {
           setError(res.message);
+        } else if (res.needActivation) {
+          setRegisteredPendingEmail(email.trim());
         }
       } catch (err) {
         setError(err.message || "Xác thực thất bại");
@@ -291,6 +331,11 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
         const res = await login(email.trim(), password);
         if (!res.success) {
           setError(res.message);
+          if (res.needActivation) {
+            setUnverifiedLoginEmail(email.trim());
+          } else {
+            setUnverifiedLoginEmail("");
+          }
         }
       } catch (err) {
         setError(err.message || "Xác thực thất bại");
@@ -331,75 +376,166 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
         </button>
       </div>
 
-      {/* Form Content */}
-      <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4">
-        {/* Title */}
-        <div className="text-center pb-1">
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-            {mode === "LOGIN" && "Chào mừng bạn trở lại"}
-            {mode === "REGISTER" &&
-              (registerStep === 1
-                ? "Đăng ký tài khoản ChiaTiền"
-                : "Cài đặt tài khoản nhận tiền")}
-            {mode === "FORGOT" && "Quên mật khẩu tài khoản"}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            {mode === "LOGIN" && "Đăng nhập để xem sao kê và chi tiêu nhóm"}
-            {mode === "REGISTER" &&
-              (registerStep === 1
-                ? "Bước 1/2: Nhập thông tin tài khoản và mật khẩu"
-                : "Bước 2/2: Nhập STK VietQR nhận tiền tự động")}
-            {mode === "FORGOT" && "Nhập email đã đăng ký để nhận liên kết khôi phục"}
-          </p>
+      {/* Hiển thị màn hình thông báo kích hoạt tài khoản nếu vừa hoàn tất Đăng ký */}
+      {registeredPendingEmail ? (
+        <div className="p-6 sm:p-7 space-y-5 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto ring-8 ring-indigo-50/50">
+            <MailCheck className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              Đăng ký thành công!
+            </h2>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Chúng tôi đã gửi một liên kết kích hoạt đến địa chỉ email:
+              <br />
+              <strong className="text-slate-900 font-semibold text-sm">{registeredPendingEmail}</strong>
+            </p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              Vui lòng kiểm tra hộp thư email (bao gồm cả mục Thư rác/Spam) và bấm vào nút <strong>"Kích hoạt tài khoản ngay"</strong> để bắt đầu sử dụng.
+            </p>
+          </div>
+
+          {resendSuccessMsg && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 rounded-xl">
+              {resendSuccessMsg}
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-xl">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2.5 pt-1">
+            <button
+              type="button"
+              disabled={isResending || resendCountdown > 0}
+              onClick={() => handleResendVerification(registeredPendingEmail)}
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isResending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {resendCountdown > 0
+                  ? `Gửi lại sau (${resendCountdown}s)`
+                  : "Chưa nhận được thư? Gửi lại email kích hoạt"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRegisteredPendingEmail("");
+                handleSwitchMode("LOGIN");
+              }}
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-all cursor-pointer"
+            >
+              Đã kích hoạt? Đăng nhập ngay
+            </button>
+          </div>
         </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4">
+          {/* Title */}
+          <div className="text-center pb-1">
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              {mode === "LOGIN" && "Chào mừng bạn trở lại"}
+              {mode === "REGISTER" &&
+                (registerStep === 1
+                  ? "Đăng ký tài khoản ChiaTiền"
+                  : "Cài đặt tài khoản nhận tiền")}
+              {mode === "FORGOT" && "Quên mật khẩu tài khoản"}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              {mode === "LOGIN" && "Đăng nhập để xem sao kê và chi tiêu nhóm"}
+              {mode === "REGISTER" &&
+                (registerStep === 1
+                  ? "Bước 1/2: Nhập thông tin tài khoản và mật khẩu"
+                  : "Bước 2/2: Nhập STK VietQR nhận tiền tự động")}
+              {mode === "FORGOT" && "Nhập email đã đăng ký để nhận liên kết khôi phục"}
+            </p>
+          </div>
 
-        {/* Step Indicator for Register */}
-        {mode === "REGISTER" && (
-          <div className="flex items-center justify-center gap-2 py-1">
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                registerStep === 1
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-emerald-100 text-emerald-700 cursor-pointer"
-              }`}
-              onClick={() => registerStep === 2 && setRegisterStep(1)}
-            >
-              <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
-                1
-              </span>
-              <span>Thông tin tài khoản</span>
+          {/* Step Indicator for Register */}
+          {mode === "REGISTER" && (
+            <div className="flex items-center justify-center gap-2 py-1">
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                  registerStep === 1
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-emerald-100 text-emerald-700 cursor-pointer"
+                }`}
+                onClick={() => registerStep === 2 && setRegisterStep(1)}
+              >
+                <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
+                  1
+                </span>
+                <span>Thông tin tài khoản</span>
+              </div>
+              <div className="w-5 h-0.5 bg-slate-200" />
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                  registerStep === 2
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-400"
+                }`}
+              >
+                <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px]">
+                  2
+                </span>
+                <span>STK VietQR</span>
+              </div>
             </div>
-            <div className="w-5 h-0.5 bg-slate-200" />
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                registerStep === 2
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-400"
-              }`}
-            >
-              <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px]">
-                2
-              </span>
-              <span>STK VietQR</span>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <span>{error}</span>
+              </div>
+              {unverifiedLoginEmail && (
+                <div className="pt-2 border-t border-rose-200/70 flex items-center justify-between">
+                  <span className="text-[11px] text-rose-600 font-medium">Chưa nhận được email?</span>
+                  <button
+                    type="button"
+                    disabled={isResending || resendCountdown > 0}
+                    onClick={() => handleResendVerification(unverifiedLoginEmail)}
+                    className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {isResending && <RefreshCw className="w-3 h-3 animate-spin" />}
+                    <span>
+                      {resendCountdown > 0
+                        ? `Gửi lại (${resendCountdown}s)`
+                        : "Gửi lại email kích hoạt"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Error message */}
-        {error && (
-          <div className="flex items-start gap-2 p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
+          {/* Resend success notification */}
+          {resendSuccessMsg && (
+            <div className="flex items-start gap-2 p-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              <span>{resendSuccessMsg}</span>
+            </div>
+          )}
 
-        {/* Success message */}
-        {successMessage && (
-          <div className="flex items-start gap-2 p-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
-            <span>{successMessage}</span>
-          </div>
-        )}
+          {/* Success message */}
+          {successMessage && (
+            <div className="flex items-start gap-2 p-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
 
         {/* ==================== REGISTER STEP 1 OR LOGIN OR FORGOT ==================== */}
 
@@ -510,22 +646,13 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                 Ngân hàng thụ hưởng
               </label>
-              <select
+              <BankSelect
+                banks={banks}
                 value={bankCode}
-                onChange={(e) => setBankCode(e.target.value)}
+                onChange={setBankCode}
                 disabled={isLoadingBanks}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                {isLoadingBanks && <option value="">Đang tải danh sách ngân hàng...</option>}
-                {!isLoadingBanks && banks.length === 0 && (
-                  <option value="">Chưa có dữ liệu ngân hàng</option>
-                )}
-                {banks.map((b) => (
-                  <option key={b.code} value={b.code}>
-                    {b.code} - {b.name}
-                  </option>
-                ))}
-              </select>
+                placeholder={isLoadingBanks ? "Đang tải danh sách ngân hàng..." : "Chọn ngân hàng thụ hưởng"}
+              />
             </div>
 
             <div>
@@ -702,6 +829,7 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
           )}
         </div>
       </form>
+      )}
     </div>
   );
 }

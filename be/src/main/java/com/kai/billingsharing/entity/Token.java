@@ -1,5 +1,6 @@
 package com.kai.billingsharing.entity;
 
+import com.kai.billingsharing.entity.enums.TokenType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -9,13 +10,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "password_reset_tokens")
+@Table(name = "tokens")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PasswordResetToken {
+public class Token {
 
     @Id
     @GeneratedValue
@@ -29,6 +30,10 @@ public class PasswordResetToken {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false, length = 32)
+    private TokenType type;
 
     @Column(name = "expiry_date", nullable = false)
     private LocalDateTime expiryDate;

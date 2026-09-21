@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { authApi, paymentInfoApi } from "../services/api";
+import { cookieUtils } from "../utils/cookie";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem("token"));
+  const [token, setToken] = useState(() => cookieUtils.get("token") || localStorage.getItem("token"));
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }) {
         setUser(userData);
       } catch (err) {
         console.warn("Failed to load user with token, clearing session", err);
+        cookieUtils.remove("token");
         localStorage.removeItem("token");
         setToken(null);
         setUser(null);
@@ -46,7 +48,8 @@ export function AuthProvider({ children }) {
     try {
       const res = await authApi.login({ email, password });
       const authToken = res.accessToken || res.token;
-      localStorage.setItem("token", authToken);
+      cookieUtils.set("token", authToken, 30);
+      localStorage.removeItem("token");
       setToken(authToken);
 
       const loggedUser = res.user || {};
@@ -55,9 +58,17 @@ export function AuthProvider({ children }) {
 
       return { success: true, user: loggedUser };
     } catch (err) {
+      const isNeedActivation =
+        err.response?.data?.needActivation ||
+        (err.response?.status === 403 &&
+          err.response?.data?.message?.toLowerCase().includes("kích hoạt"));
+
       return {
         success: false,
-        message: err.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.",
+        needActivation: isNeedActivation,
+        message:
+          err.response?.data?.message ||
+          "Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.",
       };
     }
   };
@@ -71,23 +82,33 @@ export function AuthProvider({ children }) {
       });
 
       const authToken = res.accessToken || res.token;
-      localStorage.setItem("token", authToken);
-      setToken(authToken);
-
       const loggedUser = res.user || {};
       loggedUser.name = loggedUser.fullName || loggedUser.name;
-      setUser(loggedUser);
 
-      // Nếu có truyền kèm thông tin tài khoản ngân hàng, lưu ngay lập tức
-      if (bankInfo && bankInfo.accountNumber) {
-        try {
-          await paymentInfoApi.saveMyInfo(bankInfo);
-        } catch (infoErr) {
-          console.error("Không thể lưu thông tin STK ngân hàng ban đầu", infoErr);
+      if (authToken) {
+        cookieUtils.set("token", authToken, 30);
+        localStorage.removeItem("token");
+        setToken(authToken);
+        setUser(loggedUser);
+
+        // Nếu có truyền kèm thông tin tài khoản ngân hàng, lưu ngay lập tức
+        if (bankInfo && bankInfo.accountNumber) {
+          try {
+            await paymentInfoApi.saveMyInfo(bankInfo);
+          } catch (infoErr) {
+            console.error("Không thể lưu thông tin STK ngân hàng ban đầu", infoErr);
+          }
         }
       }
 
-      return { success: true, user: loggedUser };
+      return {
+        success: true,
+        user: loggedUser,
+        needActivation: !loggedUser.isActive || !authToken,
+        message: !loggedUser.isActive
+          ? "Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản."
+          : "Đăng ký thành công!",
+      };
     } catch (err) {
       return {
         success: false,
@@ -100,7 +121,8 @@ export function AuthProvider({ children }) {
     try {
       const res = await authApi.loginGoogle({ idToken });
       const authToken = res.accessToken || res.token;
-      localStorage.setItem("token", authToken);
+      cookieUtils.set("token", authToken, 30);
+      localStorage.removeItem("token");
       setToken(authToken);
 
       const loggedUser = res.user || {};
@@ -117,6 +139,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    cookieUtils.remove("token");
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);

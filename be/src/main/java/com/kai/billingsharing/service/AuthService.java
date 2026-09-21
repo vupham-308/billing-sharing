@@ -7,11 +7,12 @@ import com.kai.billingsharing.dto.request.RegisterRequest;
 import com.kai.billingsharing.dto.request.ResetPasswordRequest;
 import com.kai.billingsharing.dto.response.AuthResponse;
 import com.kai.billingsharing.dto.response.UserResponse;
-import com.kai.billingsharing.entity.PasswordResetToken;
+import com.kai.billingsharing.entity.Token;
 import com.kai.billingsharing.entity.User;
 import com.kai.billingsharing.entity.enums.Role;
+import com.kai.billingsharing.entity.enums.TokenType;
 import com.kai.billingsharing.exception.AppException;
-import com.kai.billingsharing.repository.PasswordResetTokenRepository;
+import com.kai.billingsharing.repository.TokenRepository;
 import com.kai.billingsharing.repository.UserRepository;
 import com.kai.billingsharing.security.CustomUserDetails;
 import com.kai.billingsharing.security.JwtService;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,14 +40,14 @@ import java.util.UUID;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final TokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
 
     @Value("${app.frontend-url:https://kaidz.xyz}")
-    private String frontendUrl;
+    private String frontendUrl = "https://kaidz.xyz";
 
     @Value("${google.client-id:985123336976-2632ov9ava66lnlp9bd7nuct12nibh6i.apps.googleusercontent.com}")
     private String googleClientId;
@@ -62,29 +65,125 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
                 .role(Role.USER)
-                .isActive(true)
+                .isActive(false) // Yêu cầu kích hoạt qua email trước khi đăng nhập
+                .balance(0L)
                 .build();
 
         User savedUser = userRepository.save(user);
-        CustomUserDetails userDetails = new CustomUserDetails(savedUser);
-        String token = jwtService.generateToken(userDetails);
 
-        return buildAuthResponse(savedUser, token);
+        // Sinh token kích hoạt tài khoản (64 ký tự ngẫu nhiên)
+        String secretKey = UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "");
+
+        Token verificationToken = Token.builder()
+                .token(secretKey)
+                .user(savedUser)
+                .type(TokenType.EMAIL_VERIFICATION)
+                .expiryDate(LocalDateTime.now().plusHours(24))
+                .used(false)
+                .build();
+
+        tokenRepository.save(verificationToken);
+
+        String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
+        String verifyLink = cleanFrontendUrl + "/verify-email?token=" + secretKey;
+
+        emailService.sendAccountVerificationEmail(savedUser.getEmail(), savedUser.getFullName(), verifyLink, 24);
+        log.info("Đã tạo mã kích hoạt tài khoản cho user: {} và gửi email xác thực.", email);
+
+        // Trả về thông tin user với isActive = false, accessToken = null
+        return buildAuthResponse(savedUser, null);
+    }
+
+    @Transactional
+    public Map<String, String> verifyEmail(String tokenStr) {
+        if (tokenStr == null || tokenStr.isBlank()) {
+            throw new AppException("Mã xác thực token không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+
+        Token token = tokenRepository.findByTokenAndTypeAndUsedFalse(tokenStr.trim(), TokenType.EMAIL_VERIFICATION)
+                .orElseThrow(() -> new AppException("Liên kết kích hoạt không hợp lệ hoặc đã được sử dụng", HttpStatus.BAD_REQUEST));
+
+        if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new AppException("Liên kết kích hoạt đã hết hạn (chỉ có hiệu lực trong 24 giờ). Vui lòng yêu cầu gửi lại email kích hoạt.", HttpStatus.BAD_REQUEST);
+        }
+
+        User user = token.getUser();
+        user.setIsActive(true);
+        userRepository.save(user);
+
+        token.setUsed(true);
+        tokenRepository.save(token);
+
+        log.info("Kích hoạt tài khoản thành công cho user: {}", user.getEmail());
+        return Map.of("message", "Tài khoản của bạn đã được kích hoạt thành công! Bạn có thể đăng nhập ngay bây giờ.");
+    }
+
+    @Transactional
+    public Map<String, String> resendVerificationEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new AppException("Email không được để trống", HttpStatus.BAD_REQUEST);
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+
+        User user = userRepository.findByEmail(normalizedEmail).orElse(null);
+        if (user == null) {
+            return Map.of("message", "Nếu email tồn tại trong hệ thống và chưa kích hoạt, email hướng dẫn đã được gửi đến hộp thư của bạn.");
+        }
+
+        if (Boolean.TRUE.equals(user.getIsActive())) {
+            throw new AppException("Tài khoản này đã được kích hoạt từ trước. Bạn có thể đăng nhập ngay.", HttpStatus.BAD_REQUEST);
+        }
+
+        // Kiểm tra cooldown 60 giây
+        List<Token> existingTokens = tokenRepository.findByUserIdAndTypeAndUsedFalse(user.getId(), TokenType.EMAIL_VERIFICATION);
+        for (Token t : existingTokens) {
+            if (t.getCreatedAt() != null && t.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(60))) {
+                throw new AppException("Vui lòng đợi 60 giây trước khi yêu cầu gửi lại email kích hoạt.", HttpStatus.TOO_MANY_REQUESTS);
+            }
+            t.setUsed(true); // Vô hiệu hóa token cũ
+        }
+        tokenRepository.saveAll(existingTokens);
+
+        String secretKey = UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "");
+
+        Token newToken = Token.builder()
+                .token(secretKey)
+                .user(user)
+                .type(TokenType.EMAIL_VERIFICATION)
+                .expiryDate(LocalDateTime.now().plusHours(24))
+                .used(false)
+                .build();
+
+        tokenRepository.save(newToken);
+
+        String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
+        String verifyLink = cleanFrontendUrl + "/verify-email?token=" + secretKey;
+
+        emailService.sendAccountVerificationEmail(user.getEmail(), user.getFullName(), verifyLink, 24);
+        log.info("Đã gửi lại email kích hoạt cho user: {}", normalizedEmail);
+
+        return Map.of("message", "Email kích hoạt đã được gửi lại thành công! Vui lòng kiểm tra hộp thư của bạn.");
     }
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase();
 
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, request.getPassword())
-        );
-
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new AppException("Người dùng không tồn tại", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new AppException("Email hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new AppException("Tài khoản đã bị vô hiệu hóa", HttpStatus.FORBIDDEN);
+            throw new AppException("Tài khoản chưa được kích hoạt. Vui lòng kiểm tra hộp thư email của bạn để kích hoạt tài khoản.", HttpStatus.FORBIDDEN);
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.getPassword())
+            );
+        } catch (BadCredentialsException e) {
+            throw new AppException("Email hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED);
         }
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
@@ -99,18 +198,18 @@ public class AuthService {
         User user = userRepository.findByEmail(email).orElse(null);
 
         if (user != null && Boolean.TRUE.equals(user.getIsActive())) {
-            // Sinh secret key bảo mật ngẫu nhiên 64 ký tự hex
             String secretKey = UUID.randomUUID().toString().replace("-", "")
                     + UUID.randomUUID().toString().replace("-", "");
 
-            PasswordResetToken resetToken = PasswordResetToken.builder()
+            Token resetToken = Token.builder()
                     .token(secretKey)
                     .user(user)
+                    .type(TokenType.PASSWORD_RESET)
                     .expiryDate(LocalDateTime.now().plusMinutes(15))
                     .used(false)
                     .build();
 
-            passwordResetTokenRepository.save(resetToken);
+            tokenRepository.save(resetToken);
 
             String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
             String resetLink = cleanFrontendUrl + "/reset-password?token=" + secretKey;
@@ -128,7 +227,7 @@ public class AuthService {
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
         String tokenStr = request.getToken().trim();
 
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByTokenAndUsedFalse(tokenStr)
+        Token resetToken = tokenRepository.findByTokenAndTypeAndUsedFalse(tokenStr, TokenType.PASSWORD_RESET)
                 .orElseThrow(() -> new AppException("Liên kết đặt lại mật khẩu không hợp lệ hoặc đã được sử dụng", HttpStatus.BAD_REQUEST));
 
         if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
@@ -140,7 +239,7 @@ public class AuthService {
         userRepository.save(user);
 
         resetToken.setUsed(true);
-        passwordResetTokenRepository.save(resetToken);
+        tokenRepository.save(resetToken);
 
         log.info("Đặt lại mật khẩu thành công cho user: {}", user.getEmail());
         return Map.of("message", "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.");
@@ -197,7 +296,9 @@ public class AuthService {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user != null) {
             if (!Boolean.TRUE.equals(user.getIsActive())) {
-                throw new AppException("Tài khoản đã bị vô hiệu hóa", HttpStatus.FORBIDDEN);
+                // Nếu tài khoản trước đó chưa kích hoạt nhưng đăng nhập thành công qua Google (email đã verify) thì kích hoạt luôn
+                user.setIsActive(true);
+                userRepository.save(user);
             }
             if ((user.getFullName() == null || user.getFullName().isBlank()) && !name.isBlank()) {
                 user.setFullName(name);
@@ -210,7 +311,7 @@ public class AuthService {
                     .fullName(name)
                     .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                     .role(Role.USER)
-                    .isActive(true)
+                    .isActive(true) // Google email đã được xác minh nên kích hoạt luôn
                     .balance(0L)
                     .build();
             user = userRepository.save(user);
@@ -230,12 +331,13 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .balance(user.getBalance())
+                .isActive(user.getIsActive())
                 .build();
 
         return AuthResponse.builder()
                 .accessToken(token)
-                .tokenType("Bearer")
-                .expiresIn(jwtService.getExpirationTime() / 1000)
+                .tokenType(token != null ? "Bearer" : null)
+                .expiresIn(token != null ? jwtService.getExpirationTime() / 1000 : null)
                 .user(userResponse)
                 .build();
     }

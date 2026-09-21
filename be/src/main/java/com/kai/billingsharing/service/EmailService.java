@@ -60,6 +60,18 @@ public class EmailService {
         sendBrevoEmail(toEmail, userName, subject, htmlContent);
     }
 
+    public void sendAccountVerificationEmail(String toEmail, String userName, String verifyLink, int expiryHours) {
+        String subject = "[Billing Sharing] Xác nhận kích hoạt tài khoản của bạn";
+        String template = loadTemplate("templates/email/verify-account.html");
+        String htmlContent = template
+                .replace("{{userName}}", userName != null && !userName.isBlank() ? userName : "bạn")
+                .replace("{{verifyLink}}", verifyLink)
+                .replace("{{expiryHours}}", String.valueOf(expiryHours));
+
+        sendBrevoEmail(toEmail, userName, subject, htmlContent);
+    }
+
+
     private String loadTemplate(String path) {
         return templateCache.computeIfAbsent(path, p -> {
             try {

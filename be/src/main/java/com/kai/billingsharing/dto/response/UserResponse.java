@@ -19,4 +19,5 @@ public class UserResponse {
     private String fullName;
     private Role role;
     private Long balance;
+    private Boolean isActive;
 }

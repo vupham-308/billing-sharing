@@ -23,7 +23,7 @@ public class ScheduledTaskService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final PaymentInfoRepository paymentInfoRepository;
     private final EmailService emailService;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final TokenRepository tokenRepository;
 
     /**
      * Chạy vào 8:00 AM hàng ngày:
@@ -155,13 +155,13 @@ public class ScheduledTaskService {
     @Scheduled(cron = "0 0 4 5 * ?")
     @Transactional
     public void cleanupExpiredAndUsedPasswordResetTokens() {
-        log.info("Bắt đầu tiến trình 4:00 AM ngày 5 hàng tháng dọn dẹp các password reset token...");
+        log.info("Bắt đầu tiến trình 4:00 AM ngày 5 hàng tháng dọn dẹp các token đã hết hạn hoặc đã sử dụng...");
         try {
             LocalDateTime now = LocalDateTime.now();
-            int deletedCount = passwordResetTokenRepository.deleteExpiredOrUsedTokens(now);
-            log.info("Đã xóa {} password reset token đã hết hạn hoặc đã sử dụng thành công.", deletedCount);
+            int deletedCount = tokenRepository.deleteExpiredOrUsedTokens(now);
+            log.info("Đã xóa {} token đã hết hạn hoặc đã sử dụng thành công.", deletedCount);
         } catch (Exception e) {
-            log.error("Lỗi khi dọn dẹp password reset token: {}", e.getMessage(), e);
+            log.error("Lỗi khi dọn dẹp token: {}", e.getMessage(), e);
         }
     }
 }
