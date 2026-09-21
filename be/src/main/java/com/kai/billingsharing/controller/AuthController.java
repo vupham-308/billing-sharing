@@ -46,4 +46,22 @@ public class AuthController {
                 .build();
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<java.util.Map<String, String>> forgotPassword(@Valid @RequestBody com.kai.billingsharing.dto.request.ForgotPasswordRequest request) {
+        java.util.Map<String, String> response = authService.forgotPassword(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<java.util.Map<String, String>> resetPassword(@Valid @RequestBody com.kai.billingsharing.dto.request.ResetPasswordRequest request) {
+        java.util.Map<String, String> response = authService.resetPassword(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> loginWithGoogle(@Valid @RequestBody com.kai.billingsharing.dto.request.GoogleLoginRequest request) {
+        AuthResponse response = authService.loginWithGoogle(request);
+        return ResponseEntity.ok(response);
+    }
 }

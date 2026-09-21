@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -22,6 +23,7 @@ public class ScheduledTaskService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final PaymentInfoRepository paymentInfoRepository;
     private final EmailService emailService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     /**
      * Chạy vào 8:00 AM hàng ngày:
@@ -143,6 +145,23 @@ public class ScheduledTaskService {
             } catch (Exception e) {
                 log.error("Lỗi khi gửi email nhắc nhở cho request {}: {}", pr.getId(), e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Chạy vào 4:00 AM ngày 5 hàng tháng:
+     * Dọn dẹp tất cả các password reset token đã hết hạn hoặc đã sử dụng để tối ưu cơ sở dữ liệu.
+     */
+    @Scheduled(cron = "0 0 4 5 * ?")
+    @Transactional
+    public void cleanupExpiredAndUsedPasswordResetTokens() {
+        log.info("Bắt đầu tiến trình 4:00 AM ngày 5 hàng tháng dọn dẹp các password reset token...");
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            int deletedCount = passwordResetTokenRepository.deleteExpiredOrUsedTokens(now);
+            log.info("Đã xóa {} password reset token đã hết hạn hoặc đã sử dụng thành công.", deletedCount);
+        } catch (Exception e) {
+            log.error("Lỗi khi dọn dẹp password reset token: {}", e.getMessage(), e);
         }
     }
 }

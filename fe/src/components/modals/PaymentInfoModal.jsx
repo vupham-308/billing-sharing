@@ -1,17 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle } from "lucide-react";
-import { VIETNAM_BANKS } from "../../services/vietnamBanks";
+import { bankApi } from "../../services/api";
 
 export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave, isForceSetup = false }) {
-  const [bankCode, setBankCode] = useState("MB");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [accountHolderName, setAccountHolderName] = useState("");
+  const [banks, setBanks] = useState([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState(false);
+  const [bankCode, setBankCode] = useState(currentInfo?.bankCode || "");
+  const [accountNumber, setAccountNumber] = useState(currentInfo?.accountNumber || "");
+  const [accountHolderName, setAccountHolderName] = useState(currentInfo?.accountHolderName || "");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Nạp danh sách ngân hàng từ Database API
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadBanks() {
+      setIsLoadingBanks(true);
+      try {
+        const data = await bankApi.getBanks();
+        if (!isCancelled && Array.isArray(data)) {
+          setBanks(data);
+          if (data.length > 0) {
+            setBankCode((prev) => prev || currentInfo?.bankCode || data[0].code);
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải danh sách ngân hàng:", err);
+      } finally {
+        if (!isCancelled) setIsLoadingBanks(false);
+      }
+    }
+    if (isOpen) {
+      loadBanks();
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, currentInfo]);
+
   useEffect(() => {
     if (currentInfo) {
-      setBankCode(currentInfo.bankCode || "MB");
+      setBankCode(currentInfo.bankCode || "");
       setAccountNumber(currentInfo.accountNumber || "");
       setAccountHolderName(currentInfo.accountHolderName || "");
     }
@@ -32,7 +61,7 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
       return;
     }
 
-    const selectedBank = VIETNAM_BANKS.find((b) => b.code === bankCode);
+    const selectedBank = banks.find((b) => b.code === bankCode);
 
     setIsSubmitting(true);
     try {
@@ -113,9 +142,14 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
             <select
               value={bankCode}
               onChange={(e) => setBankCode(e.target.value)}
+              disabled={isLoadingBanks}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             >
-              {VIETNAM_BANKS.map((b) => (
+              {isLoadingBanks && <option value="">Đang tải danh sách ngân hàng...</option>}
+              {!isLoadingBanks && banks.length === 0 && (
+                <option value="">Chưa có dữ liệu ngân hàng trong hệ thống</option>
+              )}
+              {banks.map((b) => (
                 <option key={b.code} value={b.code}>
                   {b.code} - {b.name}
                 </option>

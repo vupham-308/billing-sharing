@@ -96,6 +96,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithGoogle = async (idToken) => {
+    try {
+      const res = await authApi.loginGoogle({ idToken });
+      const authToken = res.accessToken || res.token;
+      localStorage.setItem("token", authToken);
+      setToken(authToken);
+
+      const loggedUser = res.user || {};
+      loggedUser.name = loggedUser.fullName || loggedUser.name;
+      setUser(loggedUser);
+
+      return { success: true, user: loggedUser };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.response?.data?.message || "Đăng nhập Google thất bại. Vui lòng thử lại.",
+      };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -126,6 +146,7 @@ export function AuthProvider({ children }) {
         setUser,
         login,
         register,
+        loginWithGoogle,
         logout,
         refreshUser,
       }}

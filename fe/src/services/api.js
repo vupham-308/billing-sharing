@@ -37,6 +37,13 @@ export const authApi = {
   login: (credentials) => api.post("/auth/login", credentials).then((res) => res.data),
   register: (data) => api.post("/auth/register", data).then((res) => res.data),
   getMe: () => api.get("/auth/me").then((res) => res.data),
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }).then((res) => res.data),
+  resetPassword: (data) => api.post("/auth/reset-password", data).then((res) => res.data),
+  loginGoogle: (data) => api.post("/auth/google", data).then((res) => res.data),
+};
+
+export const bankApi = {
+  getBanks: () => api.get("/banks").then((res) => res.data),
 };
 
 export const groupApi = {

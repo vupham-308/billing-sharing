@@ -11,7 +11,7 @@ import CreateTransactionModal from "../components/modals/CreateTransactionModal"
 import CreateGroupModal from "../components/modals/CreateGroupModal";
 import VietQrModal from "../components/modals/VietQrModal";
 import PaymentInfoModal from "../components/modals/PaymentInfoModal";
-import AuthModal from "../components/modals/AuthModal";
+import AuthCard from "../components/auth/AuthCard";
 
 import { useAuth } from "../context/AuthContext";
 import {
@@ -45,7 +45,6 @@ export default function Dashboard() {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [selectedQrData, setSelectedQrData] = useState(null);
   const [isPaymentInfoModalOpen, setIsPaymentInfoModalOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Notification toast
   const [toastMessage, setToastMessage] = useState("");
@@ -159,11 +158,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       loadDashboardData();
-    } else if (!isLoading) {
-      // Khi không có user và đã load xong -> bật AuthModal
-      setIsAuthModalOpen(true);
     }
-  }, [user, isLoading, loadDashboardData]);
+  }, [user, loadDashboardData]);
 
   // Xử lý chuyển đổi nhóm chi tiêu
   const handleSelectGroup = (groupId) => {
@@ -345,38 +341,18 @@ export default function Dashboard() {
     }
   };
 
-  // Màn hình khi chưa đăng nhập
+  // Màn hình khi chưa đăng nhập: hiển thị trực tiếp form đăng nhập/đăng ký/quên mật khẩu ở giữa trang, bên trên là header
   if (!user && !isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <Navbar
-          onOpenCreateTransaction={() => setIsAuthModalOpen(true)}
-          onOpenCreateGroup={() => setIsAuthModalOpen(true)}
-          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onOpenCreateTransaction={() => {}}
+          onOpenCreateGroup={() => {}}
+          onOpenAuthModal={() => {}}
         />
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center space-y-5">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-              <Receipt className="w-8 h-8" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Chào mừng bạn đến với ChiaTiền
-              </h2>
-              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                Nền tảng chia sẻ chi phí minh bạch, chuẩn xác, tích hợp quét mã chuyển khoản VietQR SePay tự động.
-              </p>
-            </div>
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="w-full py-3 px-4 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-sm flex items-center justify-center gap-2 transition-all"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Đăng nhập hoặc Đăng ký ngay</span>
-            </button>
-          </div>
-        </div>
-        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6 py-10">
+          <AuthCard initialMode="LOGIN" />
+        </main>
       </div>
     );
   }
@@ -407,7 +383,7 @@ export default function Dashboard() {
       <Navbar
         onOpenCreateTransaction={() => setIsTxModalOpen(true)}
         onOpenCreateGroup={() => setIsGroupModalOpen(true)}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={() => {}}
       />
 
       {/* Main Container */}
@@ -501,11 +477,6 @@ export default function Dashboard() {
         currentInfo={paymentInfo}
         onSave={handleSavePaymentInfo}
         isForceSetup={isForceBankSetup}
-      />
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

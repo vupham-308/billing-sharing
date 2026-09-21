@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -21,6 +24,7 @@ import java.util.Map;
 public class EmailService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Map<String, String> templateCache = new ConcurrentHashMap<>();
 
     @Value("${brevo.api-key:}")
     private String brevoApiKey;
@@ -43,6 +47,29 @@ public class EmailService {
         String subject = "[Billing Sharing] Sao kê tổng hợp chi tiêu tháng: Nhóm " + groupName;
         String htmlContent = buildMonthlyStatementContent(memberName, groupName, totalDebt, details, qrUrl);
         sendBrevoEmail(toEmail, memberName, subject, htmlContent);
+    }
+
+    public void sendPasswordResetEmail(String toEmail, String userName, String resetLink, int expiryMinutes) {
+        String subject = "[Billing Sharing] Yêu cầu đặt lại mật khẩu của bạn";
+        String template = loadTemplate("templates/email/reset-password.html");
+        String htmlContent = template
+                .replace("{{userName}}", userName != null && !userName.isBlank() ? userName : "bạn")
+                .replace("{{resetLink}}", resetLink)
+                .replace("{{expiryMinutes}}", String.valueOf(expiryMinutes));
+
+        sendBrevoEmail(toEmail, userName, subject, htmlContent);
+    }
+
+    private String loadTemplate(String path) {
+        return templateCache.computeIfAbsent(path, p -> {
+            try {
+                ClassPathResource resource = new ClassPathResource(p);
+                return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                log.error("Không thể nạp email template từ {}: {}", p, e.getMessage());
+                return "<p>Vui lòng bấm vào liên kết sau để đặt lại mật khẩu: <a href='{{resetLink}}'>{{resetLink}}</a></p>";
+            }
+        });
     }
 
     private void sendBrevoEmail(String toEmail, String toName, String subject, String htmlContent) {
