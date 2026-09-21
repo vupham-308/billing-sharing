@@ -33,7 +33,6 @@ public class GroupService {
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
 
-    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public GroupResponse createGroup(CreateGroupRequest request, CustomUserDetails currentUser) {
         User creator = currentUser.getUser();
@@ -46,7 +45,7 @@ public class GroupService {
 
         Group savedGroup = groupRepository.save(group);
 
-        // Tự động thêm Admin tạo nhóm làm thành viên đầu tiên
+        // Tự động thêm người tạo nhóm làm thành viên đầu tiên
         GroupMember creatorMember = GroupMember.builder()
                 .group(savedGroup)
                 .user(creator)
@@ -70,11 +69,11 @@ public class GroupService {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new AppException("Nhóm không tồn tại", HttpStatus.NOT_FOUND));
 
-        // Kiểm tra quyền: Phải là Admin hệ thống hoặc là người tạo nhóm
-        boolean isAdmin = currentUser.getUser().getRole() == Role.ADMIN;
+        // Kiểm tra quyền: Chỉ người tạo nhóm hoặc Admin mới có quyền thêm thành viên
         boolean isCreator = group.getCreatedBy().getId().equals(currentUser.getId());
-        if (!isAdmin && !isCreator) {
-            throw new AppException("Chỉ Admin hoặc người tạo nhóm mới có quyền thêm thành viên", HttpStatus.FORBIDDEN);
+        boolean isAdmin = currentUser.getUser().getRole() == Role.ADMIN;
+        if (!isCreator && !isAdmin) {
+            throw new AppException("Chỉ người tạo nhóm hoặc Admin mới có quyền thêm thành viên", HttpStatus.FORBIDDEN);
         }
 
         String targetEmail = request.getEmail().trim().toLowerCase();

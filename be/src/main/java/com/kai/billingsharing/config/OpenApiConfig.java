@@ -7,9 +7,12 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Configuration
 @ConditionalOnProperty(name = "springdoc.swagger-ui.enabled", havingValue = "true", matchIfMissing = true)
@@ -20,6 +23,9 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI billingSharingOpenAPI() {
         return new OpenAPI()
+                .servers(List.of(
+                        new Server().url("/").description("Default Server URL (HTTPS / Reverse Proxy)")
+                ))
                 .info(new Info()
                         .title("Billing Sharing API")
                         .description("Hệ thống quản lý hóa đơn, chia tiền nhóm và thanh toán tự động qua SePay VietQR")
