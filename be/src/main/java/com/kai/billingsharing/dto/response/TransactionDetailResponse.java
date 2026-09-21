@@ -20,6 +20,8 @@ public class TransactionDetailResponse {
     private Long totalAmount;
     private UserResponse payer;
     private UUID groupId;
+    private String status;
+    private Boolean isPaid;
     private MyShareResponse myShare;
     private List<SharingMemberDetailResponse> sharingMembers;
     private LocalDateTime createdAt;

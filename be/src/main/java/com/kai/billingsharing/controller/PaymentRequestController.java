@@ -56,6 +56,33 @@ public class PaymentRequestController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/my-debts")
+    public ResponseEntity<Object> getMyDebts(
+            @RequestParam(required = false) PaymentRequestStatus status,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        Object response = paymentRequestService.getMyPaymentRequests("DEBT", status, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/my-credits")
+    public ResponseEntity<Object> getMyCredits(
+            @RequestParam(required = false) PaymentRequestStatus status,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        Object response = paymentRequestService.getMyPaymentRequests("CREDIT", status, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/confirm-paid")
+    public ResponseEntity<PaymentRequestResponse> confirmPaid(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        PaymentRequestResponse response = paymentRequestService.confirmPayment(id, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{id}/reject")
     public ResponseEntity<PaymentRequestResponse> rejectPayment(
             @PathVariable UUID id,

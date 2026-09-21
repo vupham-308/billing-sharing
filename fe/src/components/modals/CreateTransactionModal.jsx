@@ -1,6 +1,7 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Receipt, Check, AlertCircle } from "lucide-react";
 import { formatVND, formatNumber } from "../../utils/formatters";
+import { groupApi } from "../../services/api";
 
 export default function CreateTransactionModal({ isOpen, onClose, groups = [], onSubmit, currentUserId }) {
   const [groupId, setGroupId] = useState("");
@@ -21,21 +22,40 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
 
   useEffect(() => {
     if (!groupId) return;
-    const selectedGroup = groups.find((g) => g.id === groupId);
-    if (selectedGroup && selectedGroup.members) {
-      setMembers(selectedGroup.members);
-      const allIds = selectedGroup.members.map((m) => m.userId || m.id);
-      setSelectedMemberIds(allIds);
+    let isCancelled = false;
 
-      // Default custom shares to equal
-      const count = allIds.length;
-      const parsedAmount = parseInt(totalAmount, 10) || 0;
-      const initialCustom = {};
-      allIds.forEach((id) => {
-        initialCustom[id] = count > 0 ? Math.round(parsedAmount / count) : 0;
-      });
-      setCustomShares(initialCustom);
+    async function fetchMembers() {
+      const selectedGroup = groups.find((g) => g.id === groupId);
+      let groupMembers = selectedGroup?.members || [];
+      if (!groupMembers || groupMembers.length === 0) {
+        try {
+          groupMembers = await groupApi.getMembers(groupId);
+        } catch (err) {
+          console.error("Không thể tải thành viên của nhóm", err);
+          groupMembers = [];
+        }
+      }
+
+      if (!isCancelled) {
+        setMembers(groupMembers);
+        const allIds = groupMembers.map((m) => m.userId || m.id);
+        setSelectedMemberIds(allIds);
+
+        // Khởi tạo custom shares
+        const count = allIds.length;
+        const parsedAmount = parseInt(totalAmount, 10) || 0;
+        const initialCustom = {};
+        allIds.forEach((id) => {
+          initialCustom[id] = count > 0 ? Math.round(parsedAmount / count) : 0;
+        });
+        setCustomShares(initialCustom);
+      }
     }
+
+    fetchMembers();
+    return () => {
+      isCancelled = true;
+    };
   }, [groupId, groups]);
 
   if (!isOpen) return null;
@@ -59,7 +79,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
     setSelectedMemberIds((prev) => {
       const exists = prev.includes(id);
       if (exists) {
-        if (prev.length <= 1) return prev; // At least one member
+        if (prev.length <= 1) return prev; // Phải có ít nhất 1 người
         return prev.filter((mId) => mId !== id);
       } else {
         return [...prev, id];
@@ -104,12 +124,12 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
       return;
     }
 
-    let sharingMembersPayload = [];
+    let shares = [];
     if (splitType === "EQUAL") {
       let remainder = numericTotal - equalSharePerPerson * selectedMemberIds.length;
-      sharingMembersPayload = selectedMemberIds.map((id, index) => ({
+      shares = selectedMemberIds.map((id, index) => ({
         userId: id,
-        amount: index === 0 ? equalSharePerPerson + remainder : equalSharePerPerson,
+        shareAmount: index === 0 ? equalSharePerPerson + remainder : equalSharePerPerson,
       }));
     } else {
       if (!isCustomBalanced) {
@@ -120,9 +140,9 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
         );
         return;
       }
-      sharingMembersPayload = selectedMemberIds.map((id) => ({
+      shares = selectedMemberIds.map((id) => ({
         userId: id,
-        amount: customShares[id] || 0,
+        shareAmount: customShares[id] || 0,
       }));
     }
 
@@ -132,11 +152,11 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
         groupId,
         title: title.trim(),
         totalAmount: numericTotal,
-        sharingMembers: sharingMembersPayload,
+        shares,
       });
       onClose();
     } catch (err) {
-      setError(err.message || "Có lỗi xảy ra khi tạo hóa đơn.");
+      setError(err.response?.data?.message || err.message || "Không thể tạo hóa đơn mới.");
     } finally {
       setIsSubmitting(false);
     }
@@ -144,14 +164,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-8">
+      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-6">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <Receipt className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-slate-900 text-base">Thêm hóa đơn mới</h3>
+            <h3 className="font-bold text-slate-900 text-base">Thêm hóa đơn / Chi tiêu mới</h3>
           </div>
           <button
             onClick={onClose}
@@ -161,7 +181,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
           </button>
         </div>
 
-        {/* Body */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="flex items-center gap-2 p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl">
@@ -170,7 +190,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             </div>
           )}
 
-          {/* Group selector */}
+          {/* Nhóm */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Nhóm chi tiêu
@@ -188,140 +208,146 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             </select>
           </div>
 
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Tên khoản chi / Hóa đơn
-            </label>
-            <input
-              type="text"
-              placeholder="VD: Ăn trưa bún bò, Taxi sân bay..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
-          </div>
-
-          {/* Amount */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Tổng số tiền (VND)
-            </label>
-            <div className="relative">
+          {/* Tiêu đề & Tổng tiền */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Tên khoản chi
+              </label>
+              <input
+                type="text"
+                placeholder="VD: Tiền phòng tháng 9, Ăn lẩu..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Tổng số tiền (VNĐ)
+              </label>
               <input
                 type="text"
                 placeholder="0"
-                value={totalAmount ? formatNumber(totalAmount) : ""}
+                value={formatNumber(totalAmount)}
                 onChange={handleAmountChange}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
-              <span className="absolute right-3.5 top-3 text-xs font-semibold text-slate-400">
-                VND
-              </span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Người thanh toán mặc định: <strong>Bạn (Tự động ghi nhận)</strong>
-            </p>
           </div>
 
-          {/* Split Type toggle */}
+          {/* Cách chia tiền */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Cách thức chia tiền
+              Phương thức chia tiền
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setSplitType("EQUAL")}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-colors ${
+                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
                   splitType === "EQUAL"
-                    ? "bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/20"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Chia đều ({selectedMemberIds.length} người)
+                Chia đều ({formatVND(equalSharePerPerson)} / người)
               </button>
               <button
                 type="button"
                 onClick={() => setSplitType("CUSTOM")}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-colors ${
+                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
                   splitType === "CUSTOM"
-                    ? "bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/20"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Chia theo số tiền cụ thể
+                Tùy chỉnh số tiền từng người
               </button>
             </div>
           </div>
 
-          {/* Members sharing list */}
+          {/* Danh sách người tham gia chia */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Người tham gia ({selectedMemberIds.length}/{members.length})
-            </label>
-            <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Thành viên chia ({selectedMemberIds.length}/{members.length})
+              </label>
+              {splitType === "CUSTOM" && (
+                <span
+                  className={`text-xs font-semibold ${
+                    isCustomBalanced ? "text-emerald-600" : "text-rose-600"
+                  }`}
+                >
+                  {formatVND(customSum)} / {formatVND(numericTotal)}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {members.map((member) => {
-                const id = member.userId || member.id;
-                const isSelected = selectedMemberIds.includes(id);
+                const memberId = member.userId || member.id;
+                const isSelected = selectedMemberIds.includes(memberId);
+                const isMe = memberId === currentUserId;
+                const memberName = member.fullName || member.name || (isMe ? "Bạn" : "Thành viên");
 
                 return (
                   <div
-                    key={id}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-colors ${
-                      isSelected ? "bg-slate-50/80 border-slate-200" : "bg-white border-slate-100 opacity-60"
+                    key={memberId}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                      isSelected
+                        ? "bg-slate-50/80 border-slate-200"
+                        : "bg-white border-slate-100 opacity-60"
                     }`}
                   >
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none text-xs font-medium text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleMember(id)}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>{member.userName || member.name || "Thành viên"}</span>
-                    </label>
+                    <div
+                      onClick={() => toggleMember(memberId)}
+                      className="flex items-center gap-2.5 cursor-pointer select-none flex-1"
+                    >
+                      <div
+                        className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                          isSelected
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "border-slate-300 bg-white"
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-medium text-slate-800">
+                        {memberName} {isMe && "(Bạn)"}
+                      </span>
+                    </div>
 
-                    {isSelected && (
-                      <div>
-                        {splitType === "EQUAL" ? (
-                          <span className="text-xs font-bold text-slate-700">
-                            {formatVND(equalSharePerPerson)}
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              value={customShares[id] !== undefined ? formatNumber(customShares[id]) : ""}
-                              onChange={(e) => handleCustomShareChange(id, e.target.value)}
-                              className="w-24 text-right px-2 py-1 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
-                              placeholder="0"
-                            />
-                            <span className="text-[10px] text-slate-400">₫</span>
-                          </div>
-                        )}
+                    {isSelected && splitType === "EQUAL" && (
+                      <span className="text-xs font-semibold text-slate-600">
+                        {formatVND(equalSharePerPerson)}
+                      </span>
+                    )}
+
+                    {isSelected && splitType === "CUSTOM" && (
+                      <div className="flex items-center gap-1.5 w-36">
+                        <input
+                          type="text"
+                          value={formatNumber(customShares[memberId] || "")}
+                          onChange={(e) => handleCustomShareChange(memberId, e.target.value)}
+                          placeholder="0"
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right text-slate-800 focus:outline-none focus:border-indigo-500"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">đ</span>
                       </div>
                     )}
                   </div>
                 );
               })}
-            </div>
 
-            {splitType === "CUSTOM" && (
-              <div
-                className={`mt-2 p-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-                  isCustomBalanced
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-rose-50 text-rose-700 border border-rose-200"
-                }`}
-              >
-                <span>Tổng tiền đã chia: {formatVND(customSum)}</span>
-                <span>{isCustomBalanced ? "✓ Đã cân bằng" : `Chênh lệch: ${formatVND(numericTotal - customSum)}`}</span>
-              </div>
-            )}
+              {members.length === 0 && (
+                <div className="py-4 text-center text-xs text-slate-400">
+                  Đang tải thành viên nhóm...
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Footer actions */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
             <button
               type="button"
@@ -333,9 +359,9 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl shadow-xs transition-all disabled:opacity-50"
+              className="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50"
             >
-              {isSubmitting ? "Đang lưu..." : "Tạo hóa đơn"}
+              {isSubmitting ? "Đang tạo..." : "Xác nhận tạo hóa đơn"}
             </button>
           </div>
         </form>

@@ -1,6 +1,24 @@
-﻿import React, { useState } from "react";
-import { Receipt, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, UserCheck, Clock, Filter } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  Receipt,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Filter,
+  CheckCircle2,
+  Search,
+  ArrowUpDown,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { formatVND, formatDate } from "../utils/formatters";
+
+const PAGE_SIZE = 20;
 
 export default function RecentTransactions({
   transactions = [],
@@ -13,28 +31,160 @@ export default function RecentTransactions({
 }) {
   const [expandedTxId, setExpandedTxId] = useState(null);
 
+  // Search, Filter & Sort states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("DATE_DESC");
+  const [currentPage, setCurrentPage] = useState(0);
+
+  // Reset page to 0 when filters or sort change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchQuery, statusFilter, typeFilter, sortBy, dateFilter]);
+
   const toggleExpand = (id) => {
     setExpandedTxId((prev) => (prev === id ? null : id));
   };
 
+  // Determine if current user's share in this transaction is paid
+  const isTxPaidForUser = (tx) => {
+    const isPayer = tx.payerId === currentUserId || tx.payerName === "Bạn";
+    if (isPayer) return true; // Bạn là người chi trả nên phần của bạn đã được trả
+
+    const myShare =
+      tx.sharingMembers?.find(
+        (m) => m.userId === currentUserId || m.userName === "Bạn"
+      ) || tx.myShare;
+
+    if (myShare && typeof myShare.isPaid === "boolean") {
+      return myShare.isPaid;
+    }
+    if (typeof tx.isPaid === "boolean") {
+      return tx.isPaid;
+    }
+    if (tx.status === "PAID" || tx.status === "COMPLETED") {
+      return true;
+    }
+    return false;
+  };
+
+  const renderStatusBadge = (isPaid) => {
+    if (isPaid) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          Đã thanh toán
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+        <Clock className="w-3 h-3 text-rose-600" />
+        Chưa thanh toán
+      </span>
+    );
+  };
+
+  // Filter and sort transactions
+  const processedTransactions = useMemo(() => {
+    let list = [...transactions];
+
+    // 1. Search Query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (tx) =>
+          tx.title?.toLowerCase().includes(q) ||
+          tx.groupName?.toLowerCase().includes(q) ||
+          tx.payerName?.toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Status filter: PAID vs UNPAID
+    if (statusFilter === "PAID") {
+      list = list.filter((tx) => isTxPaidForUser(tx));
+    } else if (statusFilter === "UNPAID") {
+      list = list.filter((tx) => !isTxPaidForUser(tx));
+    }
+
+    // 3. Type / Role filter (Payer vs Debtor)
+    if (typeFilter === "PAYER") {
+      list = list.filter((tx) => tx.payerId === currentUserId || tx.payerName === "Bạn");
+    } else if (typeFilter === "DEBTOR") {
+      list = list.filter((tx) => tx.payerId !== currentUserId && tx.payerName !== "Bạn");
+    }
+
+    // 4. Sort
+    list.sort((a, b) => {
+      if (sortBy === "DATE_DESC") {
+        return new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date);
+      }
+      if (sortBy === "DATE_ASC") {
+        return new Date(a.createdAt || a.date) - new Date(b.createdAt || b.date);
+      }
+      if (sortBy === "AMOUNT_DESC") {
+        return (b.totalAmount || 0) - (a.totalAmount || 0);
+      }
+      if (sortBy === "AMOUNT_ASC") {
+        return (a.totalAmount || 0) - (b.totalAmount || 0);
+      }
+      return 0;
+    });
+
+    return list;
+  }, [transactions, searchQuery, statusFilter, typeFilter, sortBy, currentUserId]);
+
+  // Pagination calculations
+  const totalCount = processedTransactions.length;
+  const calcTotalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const activePage = Math.min(currentPage, calcTotalPages - 1);
+  const paginatedTransactions = processedTransactions.slice(
+    activePage * PAGE_SIZE,
+    (activePage + 1) * PAGE_SIZE
+  );
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 0 || newPage >= calcTotalPages) return;
+    setCurrentPage(newPage);
+    if (onPageChange) {
+      onPageChange(newPage);
+    }
+  };
+
+  const isFiltered = searchQuery.trim() !== "" || statusFilter !== "ALL" || typeFilter !== "ALL" || sortBy !== "DATE_DESC";
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setTypeFilter("ALL");
+    setSortBy("DATE_DESC");
+    setCurrentPage(0);
+  };
+
   return (
-    <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-      {/* Header & Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Receipt className="w-4 h-4" />
+    <section className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
+      {/* Header: Title & Quick Date Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Hóa đơn gần đây</h2>
-            <p className="text-xs text-slate-500">Mặc định 10 hóa đơn mới nhất có bạn tham gia</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">Hóa đơn gần đây</h2>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                {totalCount} hóa đơn
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">Mặc định 20 hóa đơn mới nhất có bạn tham gia</p>
           </div>
         </div>
 
         {/* Date quick filter pills */}
-        <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-100 p-1 rounded-xl">
+        <div className="flex items-center gap-1 self-start sm:self-auto bg-slate-100 p-1 rounded-xl">
           <button
-            onClick={() => onDateFilterChange("ALL")}
+            onClick={() => onDateFilterChange && onDateFilterChange("ALL")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
               dateFilter === "ALL" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
@@ -42,7 +192,7 @@ export default function RecentTransactions({
             Tất cả
           </button>
           <button
-            onClick={() => onDateFilterChange("7DAYS")}
+            onClick={() => onDateFilterChange && onDateFilterChange("7DAYS")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
               dateFilter === "7DAYS" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
@@ -50,7 +200,7 @@ export default function RecentTransactions({
             7 ngày
           </button>
           <button
-            onClick={() => onDateFilterChange("MONTH")}
+            onClick={() => onDateFilterChange && onDateFilterChange("MONTH")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
               dateFilter === "MONTH" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
@@ -60,9 +210,89 @@ export default function RecentTransactions({
         </div>
       </div>
 
+      {/* Filter & Sort Toolbar */}
+      <div className="pt-4 pb-2 space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-2.5">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên hóa đơn, người trả, nhóm..."
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 placeholder-slate-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Group */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filter */}
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PAID">Đã thanh toán</option>
+                <option value="UNPAID">Chưa thanh toán</option>
+              </select>
+            </div>
+
+            {/* Type / Role Filter */}
+            <div className="relative">
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="ALL">Tất cả vai trò</option>
+                <option value="PAYER">Bạn chi trả (Được nhận)</option>
+                <option value="DEBTOR">Phần của bạn (Cần trả)</option>
+              </select>
+            </div>
+
+            {/* Sort Dropdown */}
+            <div className="relative flex items-center">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="DATE_DESC">Mới nhất (Ngày giảm dần)</option>
+                <option value="DATE_ASC">Cũ nhất (Ngày tăng dần)</option>
+                <option value="AMOUNT_DESC">Số tiền: Cao → Thấp</option>
+                <option value="AMOUNT_ASC">Số tiền: Thấp → Cao</option>
+              </select>
+            </div>
+
+            {/* Reset Filter Button */}
+            {isFiltered && (
+              <button
+                onClick={handleResetFilters}
+                title="Xóa tất cả bộ lọc"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 rounded-xl transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Xóa lọc</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Transaction List */}
-      <div className="divide-y divide-slate-100">
-        {transactions.map((tx) => {
+      <div className="divide-y divide-slate-100 mt-1">
+        {paginatedTransactions.map((tx) => {
           const isPayer = tx.payerId === currentUserId || tx.payerName === "Bạn";
           // Find current user's share in this transaction
           const myShareObj = tx.sharingMembers?.find(
@@ -70,6 +300,7 @@ export default function RecentTransactions({
           );
           const myShareAmount = myShareObj ? myShareObj.amount : 0;
           const isExpanded = expandedTxId === tx.id;
+          const isUserPaid = isTxPaidForUser(tx);
 
           // Net effect on user:
           // If user paid 100k, their own share is 20k -> they get back +80k
@@ -77,7 +308,7 @@ export default function RecentTransactions({
           const netEffect = isPayer ? tx.totalAmount - myShareAmount : -myShareAmount;
 
           return (
-            <div key={tx.id} className="py-4 hover:bg-slate-50/50 rounded-xl px-2 transition-colors">
+            <div key={tx.id} className="py-3.5 hover:bg-slate-50/60 rounded-xl px-2 transition-colors">
               <div
                 className="flex items-center justify-between gap-3 cursor-pointer"
                 onClick={() => toggleExpand(tx.id)}
@@ -95,6 +326,7 @@ export default function RecentTransactions({
                           {tx.groupName}
                         </span>
                       )}
+                      {renderStatusBadge(isUserPaid)}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                       <span className="flex items-center gap-1">
@@ -140,20 +372,31 @@ export default function RecentTransactions({
 
               {/* Expandable Breakdown Drawer */}
               {isExpanded && (
-                <div className="mt-3.5 pt-3.5 border-t border-slate-100 pl-13 pr-2 text-xs bg-slate-50/70 p-3 rounded-lg">
+                <div className="mt-3.5 pt-3.5 border-t border-slate-100 pl-12 pr-2 text-xs bg-slate-50/70 p-3 rounded-xl">
                   <div className="font-semibold text-slate-700 mb-2 flex items-center justify-between">
                     <span>Chi tiết chia tiền ({tx.sharingMembers?.length || 0} người tham gia):</span>
-                    <span className="text-slate-500 font-normal">Tổng: {formatVND(tx.totalAmount)}</span>
+                    <span className="text-slate-500 font-normal">Tổng hóa đơn: {formatVND(tx.totalAmount)}</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {tx.sharingMembers?.map((m, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80"
+                        className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200/80"
                       >
-                        <span className="text-slate-700 font-medium">
-                          {m.userName || (m.userId === currentUserId ? "Bạn" : "Thành viên")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-700 font-medium">
+                            {m.userName || (m.userId === currentUserId ? "Bạn" : "Thành viên")}
+                          </span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
+                              m.isPaid
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            {m.isPaid ? "Đã trả" : "Chưa trả"}
+                          </span>
+                        </div>
                         <span className="font-semibold text-slate-900">{formatVND(m.amount)}</span>
                       </div>
                     ))}
@@ -164,34 +407,93 @@ export default function RecentTransactions({
           );
         })}
 
-        {transactions.length === 0 && (
+        {paginatedTransactions.length === 0 && (
           <div className="py-12 text-center text-slate-400">
             <Receipt className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm font-medium">Chưa có hóa đơn nào trong khoảng thời gian này</p>
+            <p className="text-sm font-medium">Không tìm thấy hóa đơn nào phù hợp với bộ lọc</p>
+            {isFiltered && (
+              <button
+                onClick={handleResetFilters}
+                className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Xóa bộ lọc</span>
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Pagination Footer */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-100 text-xs text-slate-500">
-          <span>
-            Trang <strong>{page + 1}</strong> trên <strong>{totalPages}</strong>
-          </span>
+      {/* Pagination Footer (20 items per page) */}
+      {calcTotalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div>
+            Hiển thị{" "}
+            <strong>
+              {totalCount > 0 ? activePage * PAGE_SIZE + 1 : 0} -{" "}
+              {Math.min((activePage + 1) * PAGE_SIZE, totalCount)}
+            </strong>{" "}
+            trên tổng số <strong>{totalCount}</strong> hóa đơn (Trang{" "}
+            <strong>{activePage + 1}</strong> / <strong>{calcTotalPages}</strong>)
+          </div>
+
           <div className="flex items-center gap-1">
+            {/* First Page */}
             <button
-              disabled={page <= 0}
-              onClick={() => onPageChange(page - 1)}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600"
+              disabled={activePage <= 0}
+              onClick={() => handlePageChange(0)}
+              title="Trang đầu"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+
+            {/* Prev Page */}
+            <button
+              disabled={activePage <= 0}
+              onClick={() => handlePageChange(activePage - 1)}
+              title="Trang trước"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
+
+            {/* Numeric Page Buttons */}
+            {Array.from({ length: calcTotalPages }, (_, i) => i).map((p) => {
+              const isCurrent = p === activePage;
+              return (
+                <button
+                  key={p}
+                  onClick={() => handlePageChange(p)}
+                  className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-semibold transition-colors ${
+                    isCurrent
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "border border-slate-200 hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  {p + 1}
+                </button>
+              );
+            })}
+
+            {/* Next Page */}
             <button
-              disabled={page >= totalPages - 1}
-              onClick={() => onPageChange(page + 1)}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600"
+              disabled={activePage >= calcTotalPages - 1}
+              onClick={() => handlePageChange(activePage + 1)}
+              title="Trang sau"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Last Page */}
+            <button
+              disabled={activePage >= calcTotalPages - 1}
+              onClick={() => handlePageChange(calcTotalPages - 1)}
+              title="Trang cuối"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            >
+              <ChevronsRight className="w-4 h-4" />
             </button>
           </div>
         </div>

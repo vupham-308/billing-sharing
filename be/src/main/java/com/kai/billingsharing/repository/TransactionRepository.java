@@ -30,4 +30,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("endDate") LocalDateTime endDate,
             Pageable pageable
     );
+
+    @Query("SELECT t FROM Transaction t " +
+            "WHERE t.group.id = :groupId " +
+            "AND (t.payer.id = :userId OR EXISTS (SELECT 1 FROM TransactionSharingMember m WHERE m.transaction = t AND m.user.id = :userId)) " +
+            "AND (:startDate IS NULL OR t.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR t.createdAt <= :endDate) " +
+            "AND (:isPaid IS NULL OR " +
+            "     (:isPaid = true AND (t.payer.id = :userId OR EXISTS (SELECT 1 FROM TransactionSharingMember m1 WHERE m1.transaction = t AND m1.user.id = :userId AND m1.isPaid = true))) OR " +
+            "     (:isPaid = false AND (t.payer.id != :userId AND EXISTS (SELECT 1 FROM TransactionSharingMember m2 WHERE m2.transaction = t AND m2.user.id = :userId AND (m2.isPaid = false OR m2.isPaid IS NULL)))))")
+    Page<Transaction> findGroupTransactionsForUserWithStatus(
+            @Param("groupId") UUID groupId,
+            @Param("userId") UUID userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("isPaid") Boolean isPaid,
+            Pageable pageable
+    );
 }

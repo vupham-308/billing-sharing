@@ -40,15 +40,27 @@ public class TransactionController {
             @PathVariable UUID groupId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) Boolean isPaid,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
             @AuthenticationPrincipal CustomUserDetails currentUser
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Sort sortObj = Sort.by(Sort.Direction.DESC, "createdAt");
+        if (sort != null && !sort.isBlank()) {
+            String[] parts = sort.split(",");
+            String property = parts[0].trim();
+            Sort.Direction direction = (parts.length > 1 && parts[1].trim().equalsIgnoreCase("asc"))
+                    ? Sort.Direction.ASC : Sort.Direction.DESC;
+            sortObj = Sort.by(direction, property);
+        }
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+
         PageResponse<TransactionDetailResponse> response = transactionService.getGroupTransactions(
                 groupId,
                 startDate,
                 endDate,
+                isPaid,
                 pageable,
                 currentUser
         );

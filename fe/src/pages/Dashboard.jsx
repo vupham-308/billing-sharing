@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import HeroBalance from "../components/HeroBalance";
 import GroupList from "../components/GroupList";
@@ -14,17 +14,16 @@ import PaymentInfoModal from "../components/modals/PaymentInfoModal";
 import AuthModal from "../components/modals/AuthModal";
 
 import { useAuth } from "../context/AuthContext";
-import { groupApi, transactionApi, paymentRequestApi, paymentInfoApi } from "../services/api";
 import {
-  MOCK_GROUPS,
-  MOCK_TRANSACTIONS,
-  MOCK_DEBTS,
-  MOCK_CREDITS,
-  MOCK_PAYMENT_INFO,
-} from "../services/mockData";
+  groupApi,
+  transactionApi,
+  paymentRequestApi,
+  paymentInfoApi,
+} from "../services/api";
+import { ShieldAlert, Receipt, LogIn } from "lucide-react";
 
 export default function Dashboard() {
-  const { user, isDemo, setUser } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
 
   // State
   const [groups, setGroups] = useState([]);
@@ -33,6 +32,7 @@ export default function Dashboard() {
   const [debts, setDebts] = useState([]);
   const [credits, setCredits] = useState([]);
   const [paymentInfo, setPaymentInfo] = useState(null);
+  const [isForceBankSetup, setIsForceBankSetup] = useState(false);
 
   // Pagination & filter
   const [page, setPage] = useState(0);
@@ -47,73 +47,133 @@ export default function Dashboard() {
   const [isPaymentInfoModalOpen, setIsPaymentInfoModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Notification banner
+  // Notification toast
   const [toastMessage, setToastMessage] = useState("");
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(""), 3500);
+    setTimeout(() => setToastMessage(""), 4000);
   };
 
-  // Fetch or Load data
-  useEffect(() => {
-    async function loadDashboardData() {
-      if (isDemo) {
-        setGroups(MOCK_GROUPS);
-        setTransactions(MOCK_TRANSACTIONS);
-        setDebts(MOCK_DEBTS);
-        setCredits(MOCK_CREDITS);
-        setPaymentInfo(MOCK_PAYMENT_INFO);
-        setTotalPages(1);
-        return;
-      }
+  // Helper để chuẩn hóa Transaction từ backend
+  const normalizeTransaction = useCallback((tx, currentUserId) => {
+    const isPayer = tx.payer?.id === currentUserId || tx.payerId === currentUserId;
+    return {
+      ...tx,
+      payerId: tx.payer?.id || tx.payerId,
+      payerName: isPayer ? "Bạn" : tx.payer?.fullName || tx.payerName || "Thành viên",
+      status: tx.status || (tx.isPaid ? "PAID" : "UNPAID"),
+      isPaid: typeof tx.isPaid === "boolean" ? tx.isPaid : tx.status === "PAID",
+      sharingMembers: (tx.sharingMembers || []).map((m) => ({
+        ...m,
+        userId: m.userId || m.id,
+        userName: m.fullName || m.userName || (m.userId === currentUserId ? "Bạn" : "Thành viên"),
+        amount: m.shareAmount ?? m.amount,
+        isPaid: typeof m.isPaid === "boolean" ? m.isPaid : false,
+      })),
+    };
+  }, []);
 
+  // Tải danh sách giao dịch theo nhóm
+  const loadGroupTransactions = useCallback(
+    async (groupId, targetPage = 0) => {
+      if (!groupId) return;
       try {
-        const [groupsData, debtsData, creditsData, infoData] = await Promise.allSettled([
-          groupApi.getGroups(),
-          paymentRequestApi.getMyDebts(),
-          paymentRequestApi.getMyCredits(),
-          paymentInfoApi.getMyInfo(),
-        ]);
-
-        if (groupsData.status === "fulfilled") setGroups(groupsData.value);
-        if (debtsData.status === "fulfilled") setDebts(debtsData.value);
-        if (creditsData.status === "fulfilled") setCredits(creditsData.value);
-        if (infoData.status === "fulfilled") setPaymentInfo(infoData.value);
-
-        // Load transactions for first group or overall
-        if (groupsData.status === "fulfilled" && groupsData.value.length > 0) {
-          const firstGroupId = groupsData.value[0].id;
-          loadGroupTransactions(firstGroupId, 0);
-        }
+        const res = await groupApi.getGroupTransactions(groupId, {
+          page: targetPage,
+          size: 20,
+          sort: "createdAt,desc",
+        });
+        const items = (res.content || []).map((t) => normalizeTransaction(t, user?.id));
+        setTransactions(items);
+        setTotalPages(res.totalPages || 1);
+        setPage(res.number || 0);
       } catch (err) {
-        console.error("Error loading dashboard data", err);
+        console.error("Lỗi khi tải giao dịch nhóm:", err);
       }
-    }
+    },
+    [user?.id, normalizeTransaction]
+  );
 
-    loadDashboardData();
-  }, [isDemo]);
+  // Tải toàn bộ dữ liệu Dashboard khi đăng nhập
+  const loadDashboardData = useCallback(async () => {
+    if (!user) return;
 
-  // Load transactions based on selected group and pagination
-  const loadGroupTransactions = async (groupId, targetPage) => {
-    if (isDemo) {
-      // In demo mode, filter mock transactions
-      return;
-    }
     try {
-      const res = await groupApi.getGroupTransactions(groupId, {
-        page: targetPage,
-        size: 10,
-      });
-      setTransactions(res.content || []);
-      setTotalPages(res.totalPages || 1);
-      setPage(res.number || 0);
+      const [groupsData, debtsData, creditsData, infoData] = await Promise.allSettled([
+        groupApi.getGroups(),
+        paymentRequestApi.getMyDebts(),
+        paymentRequestApi.getMyCredits(),
+        paymentInfoApi.getMyInfo(),
+      ]);
+
+      // Xử lý thông tin tài khoản ngân hàng (Kiểm tra bắt buộc)
+      if (infoData.status === "fulfilled" && infoData.value && infoData.value.accountNumber) {
+        setPaymentInfo(infoData.value);
+        setIsForceBankSetup(false);
+      } else {
+        // Chưa có STK ngân hàng -> Yêu cầu cài đặt bắt buộc trước khi dùng tiếp
+        setPaymentInfo(null);
+        setIsForceBankSetup(true);
+        setIsPaymentInfoModalOpen(true);
+      }
+
+      // Xử lý danh sách nhóm
+      let loadedGroups = [];
+      if (groupsData.status === "fulfilled" && Array.isArray(groupsData.value)) {
+        loadedGroups = groupsData.value.map((g) => ({
+          ...g,
+          myBalance: g.myBalanceInGroup ?? g.myBalance ?? 0,
+        }));
+        setGroups(loadedGroups);
+      }
+
+      // Xử lý công nợ
+      if (debtsData.status === "fulfilled" && Array.isArray(debtsData.value)) {
+        const normalizedDebts = debtsData.value.map((d) => ({
+          ...d,
+          toUserName: d.creditor?.fullName || d.toUserName || "Người nhận",
+        }));
+        setDebts(normalizedDebts);
+      }
+
+      if (creditsData.status === "fulfilled" && Array.isArray(creditsData.value)) {
+        const normalizedCredits = creditsData.value.map((c) => ({
+          ...c,
+          fromUserName: c.debtor?.fullName || c.fromUserName || "Người chuyển",
+        }));
+        setCredits(normalizedCredits);
+      }
+
+      // Tải giao dịch của nhóm đầu tiên nếu có
+      if (loadedGroups.length > 0) {
+        const targetId = selectedGroupId || loadedGroups[0].id;
+        setSelectedGroupId(targetId);
+        loadGroupTransactions(targetId, 0);
+      }
     } catch (err) {
-      console.error("Error loading group transactions", err);
+      console.error("Lỗi khi tải dữ liệu Dashboard:", err);
+    }
+  }, [user, selectedGroupId, loadGroupTransactions]);
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    } else if (!isLoading) {
+      // Khi không có user và đã load xong -> bật AuthModal
+      setIsAuthModalOpen(true);
+    }
+  }, [user, isLoading, loadDashboardData]);
+
+  // Xử lý chuyển đổi nhóm chi tiêu
+  const handleSelectGroup = (groupId) => {
+    setSelectedGroupId(groupId);
+    if (groupId) {
+      loadGroupTransactions(groupId, 0);
     }
   };
 
-  // Filter transactions in UI (especially for demo mode and date filters)
+  // Filter transactions theo ngày ở UI
   const filteredTransactions = useMemo(() => {
     let list = [...transactions];
 
@@ -124,16 +184,16 @@ export default function Dashboard() {
     const now = new Date();
     if (dateFilter === "7DAYS") {
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      list = list.filter((t) => new Date(t.createdAt || t.date) >= sevenDaysAgo);
+      list = list.filter((t) => new Date(t.createdAt) >= sevenDaysAgo);
     } else if (dateFilter === "MONTH") {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      list = list.filter((t) => new Date(t.createdAt || t.date) >= firstDayOfMonth);
+      list = list.filter((t) => new Date(t.createdAt) >= firstDayOfMonth);
     }
 
     return list;
   }, [transactions, selectedGroupId, dateFilter]);
 
-  // Calculate totals
+  // Tính tổng nợ / có
   const totalOwedToYou = useMemo(() => {
     return credits
       .filter((c) => c.status === "PENDING" || c.status === "WAITING_APPROVE")
@@ -146,90 +206,75 @@ export default function Dashboard() {
       .reduce((sum, d) => sum + (d.amount || 0), 0);
   }, [debts]);
 
-  // Modal Handlers: Create Transaction
+  // Handlers: Tạo hóa đơn
   const handleCreateTransaction = async (formData) => {
-    if (isDemo) {
-      const targetGroup = groups.find((g) => g.id === formData.groupId);
-      const myShare =
-        formData.sharingMembers.find((m) => m.userId === user?.id)?.amount || 0;
-      const netGain = formData.totalAmount - myShare;
-
-      const newTx = {
-        id: `tx-demo-${Date.now()}`,
-        groupId: formData.groupId,
-        groupName: targetGroup?.name || "Nhóm",
+    try {
+      await transactionApi.createTransaction(formData.groupId, {
         title: formData.title,
         totalAmount: formData.totalAmount,
-        payerId: user?.id,
-        payerName: "Bạn",
-        createdAt: new Date().toISOString(),
-        sharingMembers: formData.sharingMembers.map((m) => {
-          const matchedMember = targetGroup?.members?.find((gm) => (gm.userId || gm.id) === m.userId);
-          return {
-            userId: m.userId,
-            userName: m.userId === user?.id ? "Bạn" : matchedMember?.name || "Thành viên",
-            amount: m.amount,
-          };
-        }),
-      };
+        shares: formData.shares,
+      });
 
-      setTransactions([newTx, ...transactions]);
-
-      // Update user balance
-      if (user) {
-        setUser({ ...user, balance: (user.balance || 0) + netGain });
+      showToast("Đã tạo hóa đơn mới thành công!");
+      // Tải lại giao dịch nhóm
+      if (formData.groupId) {
+        setSelectedGroupId(formData.groupId);
+        loadGroupTransactions(formData.groupId, 0);
       }
-      showToast("Đã tạo hóa đơn thành công! Số dư đã được cập nhật.");
-      return;
-    }
-
-    // Live API
-    await transactionApi.createTransaction(formData);
-    showToast("Đã tạo hóa đơn mới!");
-    // Refresh group transactions
-    if (formData.groupId) {
-      loadGroupTransactions(formData.groupId, 0);
+      // Tải lại công nợ & số dư
+      paymentRequestApi.getMyDebts().then((d) => setDebts(d || []));
+      paymentRequestApi.getMyCredits().then((c) => setCredits(c || []));
+      refreshUser();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Tạo hóa đơn thất bại";
+      showToast(msg);
+      throw err;
     }
   };
 
-  // Modal Handlers: Create Group
+  // Handlers: Tạo nhóm
   const handleCreateGroup = async (formData) => {
-    if (isDemo) {
-      const newGroup = {
-        id: `g-demo-${Date.now()}`,
+    try {
+      const res = await groupApi.createGroup({
         name: formData.name,
-        description: formData.description,
         summaryDayOfMonth: formData.summaryDayOfMonth,
-        myBalance: 0,
-        memberCount: 1,
-        members: [{ id: user?.id, name: `${user?.name} (Bạn)` }],
-      };
-      setGroups([newGroup, ...groups]);
-      showToast(`Đã tạo nhóm "${formData.name}" thành công!`);
-      return;
+      });
+      showToast(`Đã tạo nhóm "${res.name}" thành công!`);
+      const updatedGroups = await groupApi.getGroups();
+      setGroups(updatedGroups || []);
+      setSelectedGroupId(res.id);
+      loadGroupTransactions(res.id, 0);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Tạo nhóm thất bại";
+      showToast(msg);
+      throw err;
     }
-
-    // Live API
-    const res = await groupApi.createGroup(formData);
-    setGroups([res, ...groups]);
-    showToast(`Đã tạo nhóm "${res.name}"!`);
   };
 
-  // Modal Handlers: Open VietQR
-  const handleOpenQrModal = (debtItem) => {
-    setSelectedQrData({
-      id: debtItem.id,
-      paymentRequestId: debtItem.id,
-      bankCode: debtItem.bankCode || "MB",
-      accountNumber: debtItem.accountNumber || "0123456789",
-      accountHolderName: debtItem.toUserName || "NGUYEN VAN A",
-      amount: debtItem.amount,
-      description: debtItem.description || `ChiaTien thanh toan ${debtItem.id.slice(0, 8)}`,
-    });
-    setIsQrModalOpen(true);
+  // Handlers: Quét VietQR
+  const handleOpenQrModal = async (debtItem) => {
+    try {
+      const qrRes = await paymentRequestApi.getQr(debtItem.id);
+      setSelectedQrData({
+        id: debtItem.id,
+        paymentRequestId: debtItem.id,
+        bankCode: qrRes.bankCode,
+        accountNumber: qrRes.accountNumber,
+        accountHolderName: qrRes.accountHolderName,
+        amount: qrRes.amount,
+        description: qrRes.description,
+        qrUrl: qrRes.qrUrl,
+      });
+      setIsQrModalOpen(true);
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        "Người thụ hưởng chưa thiết lập số tài khoản ngân hàng để tạo mã QR.";
+      showToast(msg);
+    }
   };
 
-  // Personal VietQR preview
+  // Xem trước VietQR cá nhân
   const handlePreviewPersonalQr = () => {
     if (!paymentInfo || !paymentInfo.accountNumber) {
       setIsPaymentInfoModalOpen(true);
@@ -241,85 +286,120 @@ export default function Dashboard() {
       accountNumber: paymentInfo.accountNumber,
       accountHolderName: paymentInfo.accountHolderName,
       amount: 0,
-      description: `ChiaTien ${user?.name || "thanh toan"}`,
+      description: `ChiaTien ${user?.fullName || user?.name || "thanh toan"}`,
     });
     setIsQrModalOpen(true);
   };
 
-  // Confirm Paid
+  // Xác nhận đã chuyển tiền
   const handleConfirmPaid = async (paymentRequestId) => {
-    if (isDemo) {
+    try {
+      await paymentRequestApi.confirmPaid(paymentRequestId);
       setDebts((prev) =>
         prev.map((d) => (d.id === paymentRequestId ? { ...d, status: "WAITING_APPROVE" } : d))
       );
-      showToast("Đã xác nhận thanh toán! Đang chờ đối phương xác nhận nhận tiền.");
-      return;
+      showToast("Đã xác nhận thanh toán! Đang chờ đối phương duyệt nhận tiền.");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Không thể xác nhận thanh toán.");
     }
-
-    await paymentRequestApi.confirmPaid(paymentRequestId);
-    setDebts((prev) =>
-      prev.map((d) => (d.id === paymentRequestId ? { ...d, status: "WAITING_APPROVE" } : d))
-    );
-    showToast("Đã xác nhận thanh toán!");
   };
 
-  // Approve Credit
+  // Duyệt đã nhận tiền
   const handleApproveCredit = async (paymentRequestId) => {
-    if (isDemo) {
-      const targetItem = credits.find((c) => c.id === paymentRequestId);
+    try {
+      await paymentRequestApi.approve(paymentRequestId);
       setCredits((prev) =>
         prev.map((c) => (c.id === paymentRequestId ? { ...c, status: "COMPLETED" } : c))
       );
-      if (user && targetItem) {
-        setUser({ ...user, balance: (user.balance || 0) + targetItem.amount });
-      }
-      showToast("Đã duyệt nhận tiền thành công! Số dư đã được hoàn tất.");
-      return;
+      refreshUser();
+      showToast("Đã duyệt đã nhận tiền thành công!");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Không thể duyệt nhận tiền.");
     }
-
-    await paymentRequestApi.approve(paymentRequestId);
-    setCredits((prev) =>
-      prev.map((c) => (c.id === paymentRequestId ? { ...c, status: "COMPLETED" } : c))
-    );
-    showToast("Đã duyệt đã nhận tiền!");
   };
 
-  // Reject Credit
+  // Từ chối nhận tiền
   const handleRejectCredit = async (paymentRequestId) => {
-    if (isDemo) {
+    try {
+      await paymentRequestApi.reject(paymentRequestId);
       setCredits((prev) =>
         prev.map((c) => (c.id === paymentRequestId ? { ...c, status: "PENDING" } : c))
       );
-      showToast("Đã chuyển lại yêu cầu về Chưa nhận được tiền (Pending).");
-      return;
+      showToast("Đã chuyển lại yêu cầu về trạng thái Chưa nhận được tiền.");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Không thể từ chối nhận tiền.");
     }
-
-    await paymentRequestApi.reject(paymentRequestId);
-    setCredits((prev) =>
-      prev.map((c) => (c.id === paymentRequestId ? { ...c, status: "PENDING" } : c))
-    );
-    showToast("Đã từ chối nhận tiền.");
   };
 
-  // Save Payment Info
+  // Lưu thông tin tài khoản ngân hàng
   const handleSavePaymentInfo = async (infoData) => {
-    if (isDemo) {
-      setPaymentInfo(infoData);
-      showToast("Đã cập nhật số tài khoản nhận tiền!");
-      return;
+    try {
+      const res = await paymentInfoApi.saveMyInfo(infoData);
+      setPaymentInfo(res);
+      setIsForceBankSetup(false);
+      showToast("Đã lưu thông tin tài khoản ngân hàng thành công!");
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Không thể lưu thông tin ngân hàng.";
+      showToast(msg);
+      throw err;
     }
-
-    const res = await paymentInfoApi.saveMyInfo(infoData);
-    setPaymentInfo(res);
-    showToast("Đã lưu thông tin tài khoản ngân hàng!");
   };
+
+  // Màn hình khi chưa đăng nhập
+  if (!user && !isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <Navbar
+          onOpenCreateTransaction={() => setIsAuthModalOpen(true)}
+          onOpenCreateGroup={() => setIsAuthModalOpen(true)}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center space-y-5">
+            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <Receipt className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                Chào mừng bạn đến với ChiaTiền
+              </h2>
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                Nền tảng chia sẻ chi phí minh bạch, chuẩn xác, tích hợp quét mã chuyển khoản VietQR SePay tự động.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="w-full py-3 px-4 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-sm flex items-center justify-center gap-2 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Đăng nhập hoặc Đăng ký ngay</span>
+            </button>
+          </div>
+        </div>
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-16">
+    <div className="min-h-screen bg-slate-50/60 pb-16 relative">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 text-xs sm:text-sm font-medium animate-bounce flex items-center gap-2">
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Force Setup Overlay nếu user chưa có STK ngân hàng */}
+      {isForceBankSetup && (
+        <div className="fixed inset-0 z-45 bg-slate-900/60 backdrop-blur-md flex items-center justify-center pointer-events-auto">
+          <div className="text-center p-6 max-w-sm text-white space-y-3">
+            <ShieldAlert className="w-12 h-12 text-amber-400 mx-auto animate-pulse" />
+            <h3 className="text-lg font-bold">Cần thiết lập tài khoản nhận tiền</h3>
+            <p className="text-xs text-slate-300">
+              Vui lòng hoàn tất nhập tài khoản ngân hàng trong cửa sổ để bắt đầu sử dụng đầy đủ các tính năng.
+            </p>
+          </div>
         </div>
       )}
 
@@ -331,7 +411,11 @@ export default function Dashboard() {
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+      <main
+        className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6 ${
+          isForceBankSetup ? "filter blur-xs pointer-events-none" : ""
+        }`}
+      >
         {/* Hero Balance Card */}
         <HeroBalance
           user={user}
@@ -350,7 +434,7 @@ export default function Dashboard() {
             <GroupList
               groups={groups}
               selectedGroupId={selectedGroupId}
-              onSelectGroup={(id) => setSelectedGroupId(id)}
+              onSelectGroup={handleSelectGroup}
               onOpenCreateGroup={() => setIsGroupModalOpen(true)}
             />
 
@@ -360,7 +444,7 @@ export default function Dashboard() {
               currentUserId={user?.id}
               page={page}
               totalPages={totalPages}
-              onPageChange={(p) => setPage(p)}
+              onPageChange={(p) => loadGroupTransactions(selectedGroupId, p)}
               dateFilter={dateFilter}
               onDateFilterChange={(filter) => setDateFilter(filter)}
             />
@@ -411,9 +495,12 @@ export default function Dashboard() {
 
       <PaymentInfoModal
         isOpen={isPaymentInfoModalOpen}
-        onClose={() => setIsPaymentInfoModalOpen(false)}
+        onClose={() => {
+          if (!isForceBankSetup) setIsPaymentInfoModalOpen(false);
+        }}
         currentInfo={paymentInfo}
         onSave={handleSavePaymentInfo}
+        isForceSetup={isForceBankSetup}
       />
 
       <AuthModal

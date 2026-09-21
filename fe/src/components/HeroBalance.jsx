@@ -1,5 +1,5 @@
-﻿import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, Users, QrCode, Wallet, CheckCircle2 } from "lucide-react";
+import React from "react";
+import { ArrowDownLeft, ArrowUpRight, Plus, Users, Wallet } from "lucide-react";
 import { formatVND } from "../utils/formatters";
 
 export default function HeroBalance({
@@ -46,13 +46,6 @@ export default function HeroBalance({
             <Users className="w-4 h-4 text-slate-600" />
             <span>Tạo nhóm mới</span>
           </button>
-          <button
-            onClick={onOpenPaymentInfo}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-300 transition-colors"
-          >
-            <QrCode className="w-4 h-4 text-indigo-600" />
-            <span>Mã QR nhận tiền</span>
-          </button>
         </div>
       </div>
 
@@ -70,19 +63,6 @@ export default function HeroBalance({
         >
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
             <span>Số dư ròng tổng thể</span>
-            {isPositive ? (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-                Đang có lãi
-              </span>
-            ) : isZero ? (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-medium">
-                Tất toán đủ
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium">
-                Cần thanh toán
-              </span>
-            )}
           </div>
           <div
             className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${

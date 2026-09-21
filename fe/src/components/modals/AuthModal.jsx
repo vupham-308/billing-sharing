@@ -1,17 +1,44 @@
-﻿import React, { useState } from "react";
-import { X, LogIn, UserPlus, AlertCircle, Sparkles } from "lucide-react";
+import React, { useState } from "react";
+import { X, LogIn, UserPlus, AlertCircle, CreditCard, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { VIETNAM_BANKS } from "../../services/vietnamBanks";
+
+function removeVietnameseTones(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toUpperCase();
+}
 
 export default function AuthModal({ isOpen, onClose }) {
-  const { login, register, setIsDemo, setUser, DEMO_USER } = useAuth();
+  const { login, register } = useAuth();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+
+  // Form states
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // Bank Info for Register
+  const [bankCode, setBankCode] = useState("MB");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [isHolderTouched, setIsHolderTouched] = useState(false);
+
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setName(val);
+    if (!isHolderTouched) {
+      setAccountHolderName(removeVietnameseTones(val));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,16 +48,34 @@ export default function AuthModal({ isOpen, onClose }) {
       setError("Vui lòng điền đầy đủ email và mật khẩu");
       return;
     }
-    if (isRegisterMode && !name.trim()) {
-      setError("Vui lòng nhập họ và tên của bạn");
-      return;
+
+    if (isRegisterMode) {
+      if (!name.trim()) {
+        setError("Vui lòng nhập họ và tên của bạn");
+        return;
+      }
+      if (!accountNumber.trim()) {
+        setError("Vui lòng nhập số tài khoản ngân hàng để nhận tiền chuyển khoản");
+        return;
+      }
+      if (!accountHolderName.trim()) {
+        setError("Vui lòng nhập tên chủ tài khoản ngân hàng");
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
       let res;
       if (isRegisterMode) {
-        res = await register(name.trim(), email.trim(), password);
+        const selectedBank = VIETNAM_BANKS.find((b) => b.code === bankCode);
+        const bankPayload = {
+          bankCode,
+          bankName: selectedBank?.name || bankCode,
+          accountNumber: accountNumber.trim(),
+          accountHolderName: accountHolderName.trim().toUpperCase(),
+        };
+        res = await register(name.trim(), email.trim(), password, bankPayload);
       } else {
         res = await login(email.trim(), password);
       }
@@ -47,15 +92,9 @@ export default function AuthModal({ isOpen, onClose }) {
     }
   };
 
-  const handleUseDemo = () => {
-    setIsDemo(true);
-    setUser(DEMO_USER);
-    onClose();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-6">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2">
@@ -63,7 +102,7 @@ export default function AuthModal({ isOpen, onClose }) {
               {isRegisterMode ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
             </div>
             <h3 className="font-bold text-slate-900 text-base">
-              {isRegisterMode ? "Đăng ký tài khoản" : "Đăng nhập hệ thống"}
+              {isRegisterMode ? "Đăng ký tài khoản ChiaTiền" : "Đăng nhập hệ thống"}
             </h3>
           </div>
           <button
@@ -92,7 +131,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 type="text"
                 placeholder="VD: Nguyễn Văn Nam"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleNameChange}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
@@ -124,6 +163,69 @@ export default function AuthModal({ isOpen, onClose }) {
             />
           </div>
 
+          {/* Phần nhập STK Ngân hàng bắt buộc khi Đăng ký */}
+          {isRegisterMode && (
+            <div className="pt-3 border-t border-slate-100 space-y-3.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <CreditCard className="w-4 h-4 text-indigo-600" />
+                <span>Tài khoản nhận tiền VietQR (Bắt buộc)</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Ngân hàng thụ hưởng
+                </label>
+                <select
+                  value={bankCode}
+                  onChange={(e) => setBankCode(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                >
+                  {VIETNAM_BANKS.map((b) => (
+                    <option key={b.code} value={b.code}>
+                      {b.code} - {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Số tài khoản ngân hàng
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: 0123456789"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value.replace(/\s+/g, ""))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Tên chủ tài khoản (In hoa không dấu)
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: NGUYEN VAN NAM"
+                  value={accountHolderName}
+                  onChange={(e) => {
+                    setIsHolderTouched(true);
+                    setAccountHolderName(e.target.value.toUpperCase());
+                  }}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-500 flex items-start gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  STK dùng để tự động tạo mã VietQR SePay nhận tiền từ các thành viên trong nhóm chi tiêu.
+                </span>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isSubmitting}
@@ -132,7 +234,7 @@ export default function AuthModal({ isOpen, onClose }) {
             {isSubmitting
               ? "Đang xử lý..."
               : isRegisterMode
-              ? "Tạo tài khoản"
+              ? "Tạo tài khoản & Bắt đầu"
               : "Đăng nhập"}
           </button>
 
@@ -142,7 +244,10 @@ export default function AuthModal({ isOpen, onClose }) {
                 Đã có tài khoản?{" "}
                 <button
                   type="button"
-                  onClick={() => setIsRegisterMode(false)}
+                  onClick={() => {
+                    setError("");
+                    setIsRegisterMode(false);
+                  }}
                   className="font-semibold text-indigo-600 hover:underline"
                 >
                   Đăng nhập
@@ -153,24 +258,16 @@ export default function AuthModal({ isOpen, onClose }) {
                 Chưa có tài khoản?{" "}
                 <button
                   type="button"
-                  onClick={() => setIsRegisterMode(true)}
+                  onClick={() => {
+                    setError("");
+                    setIsRegisterMode(true);
+                  }}
                   className="font-semibold text-indigo-600 hover:underline"
                 >
                   Đăng ký ngay
                 </button>
               </span>
             )}
-          </div>
-
-          <div className="pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={handleUseDemo}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Tiếp tục trải nghiệm ở chế độ Demo</span>
-            </button>
           </div>
         </form>
       </div>

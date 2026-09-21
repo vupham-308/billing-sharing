@@ -59,4 +59,13 @@ public class GroupController {
         GroupDetailResponse response = groupService.getGroupDetail(groupId, currentUser);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{groupId}/members")
+    public ResponseEntity<List<GroupMemberResponse>> getGroupMembers(
+            @PathVariable UUID groupId,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        GroupDetailResponse response = groupService.getGroupDetail(groupId, currentUser);
+        return ResponseEntity.ok(response.getMembers());
+    }
 }

@@ -126,6 +126,18 @@ public class TransactionService {
             Pageable pageable,
             CustomUserDetails currentUser
     ) {
+        return getGroupTransactions(groupId, startDate, endDate, null, pageable, currentUser);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TransactionDetailResponse> getGroupTransactions(
+            UUID groupId,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Boolean isPaid,
+            Pageable pageable,
+            CustomUserDetails currentUser
+    ) {
         UUID currentUserId = currentUser.getId();
 
         // Kiểm tra quyền truy cập nhóm
@@ -134,14 +146,26 @@ public class TransactionService {
             throw new AppException("Bạn không có quyền truy cập hóa đơn của nhóm này", HttpStatus.FORBIDDEN);
         }
 
-        // Truy vấn phân trang, chỉ lấy hóa đơn user tham gia chia sẻ hoặc là payer
-        Page<Transaction> pageData = transactionRepository.findGroupTransactionsForUser(
-                groupId,
-                currentUserId,
-                startDate,
-                endDate,
-                pageable
-        );
+        // Truy vấn phân trang, lọc theo trạng thái isPaid của user nếu có
+        Page<Transaction> pageData;
+        if (isPaid != null) {
+            pageData = transactionRepository.findGroupTransactionsForUserWithStatus(
+                    groupId,
+                    currentUserId,
+                    startDate,
+                    endDate,
+                    isPaid,
+                    pageable
+            );
+        } else {
+            pageData = transactionRepository.findGroupTransactionsForUser(
+                    groupId,
+                    currentUserId,
+                    startDate,
+                    endDate,
+                    pageable
+            );
+        }
 
         if (pageData.isEmpty()) {
             return PageResponse.of(pageData, Collections.emptyList());
@@ -214,12 +238,18 @@ public class TransactionService {
                 .balance(payer.getBalance())
                 .build();
 
+        boolean isPayer = payer.getId().equals(currentUserId);
+        boolean isUserPaid = isPayer || (myShare != null && Boolean.TRUE.equals(myShare.getIsPaid()));
+        String status = isUserPaid ? "PAID" : "UNPAID";
+
         return TransactionDetailResponse.builder()
                 .id(tx.getId())
                 .title(tx.getTitle())
                 .totalAmount(tx.getTotalAmount())
                 .payer(payerResponse)
                 .groupId(tx.getGroup().getId())
+                .status(status)
+                .isPaid(isUserPaid)
                 .myShare(myShare)
                 .sharingMembers(memberDetails)
                 .createdAt(tx.getCreatedAt())
