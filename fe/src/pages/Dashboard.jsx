@@ -106,16 +106,14 @@ export default function Dashboard() {
         paymentInfoApi.getMyInfo(),
       ]);
 
-      // Xử lý thông tin tài khoản ngân hàng (Kiểm tra bắt buộc)
+      // Xử lý thông tin tài khoản ngân hàng
       if (infoData.status === "fulfilled" && infoData.value && infoData.value.accountNumber) {
         setPaymentInfo(infoData.value);
-        setIsForceBankSetup(false);
       } else {
-        // Chưa có STK ngân hàng -> Yêu cầu cài đặt bắt buộc trước khi dùng tiếp
         setPaymentInfo(null);
-        setIsForceBankSetup(true);
-        setIsPaymentInfoModalOpen(true);
       }
+      setIsForceBankSetup(false);
+      setIsPaymentInfoModalOpen(false);
 
       // Xử lý danh sách nhóm
       let loadedGroups = [];
@@ -366,19 +364,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Force Setup Overlay nếu user chưa có STK ngân hàng */}
-      {isForceBankSetup && (
-        <div className="fixed inset-0 z-45 bg-slate-900/60 backdrop-blur-md flex items-center justify-center pointer-events-auto">
-          <div className="text-center p-6 max-w-sm text-white space-y-3">
-            <ShieldAlert className="w-12 h-12 text-amber-400 mx-auto animate-pulse" />
-            <h3 className="text-lg font-bold">Cần thiết lập tài khoản nhận tiền</h3>
-            <p className="text-xs text-slate-300">
-              Vui lòng hoàn tất nhập tài khoản ngân hàng trong cửa sổ để bắt đầu sử dụng đầy đủ các tính năng.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Navigation */}
       <Navbar
         onOpenCreateTransaction={() => setIsTxModalOpen(true)}
@@ -387,48 +372,39 @@ export default function Dashboard() {
       />
 
       {/* Main Container */}
-      <main
-        className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6 ${
-          isForceBankSetup ? "filter blur-xs pointer-events-none" : ""
-        }`}
-      >
-        {/* Hero Balance Card */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
         <HeroBalance
-          user={user}
-          totalOwedToYou={totalOwedToYou}
-          totalYouOwe={totalYouOwe}
+          groups={groups}
+          debts={debts}
+          credits={credits}
           onOpenCreateTransaction={() => setIsTxModalOpen(true)}
           onOpenCreateGroup={() => setIsGroupModalOpen(true)}
-          onOpenPaymentInfo={() => setIsPaymentInfoModalOpen(true)}
         />
 
-        {/* 2-Column Responsive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Main Column (8 of 12) */}
-          <div className="lg:col-span-8 space-y-6">
-            {/* Groups */}
+        {/* 2-column layout */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Main (Left 2 cols) */}
+          <div className="lg:col-span-2 space-y-6">
             <GroupList
               groups={groups}
               selectedGroupId={selectedGroupId}
               onSelectGroup={handleSelectGroup}
-              onOpenCreateGroup={() => setIsGroupModalOpen(true)}
+              onOpenCreateModal={() => setIsGroupModalOpen(true)}
             />
 
-            {/* Transactions */}
             <RecentTransactions
               transactions={filteredTransactions}
               currentUserId={user?.id}
+              dateFilter={dateFilter}
+              onChangeDateFilter={setDateFilter}
               page={page}
               totalPages={totalPages}
               onPageChange={(p) => loadGroupTransactions(selectedGroupId, p)}
-              dateFilter={dateFilter}
-              onDateFilterChange={(filter) => setDateFilter(filter)}
             />
           </div>
 
-          {/* Sidebar Column (4 of 12) */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* Payment Requests & Approvals */}
+          {/* Sidebar (Right 1 col) */}
+          <div className="space-y-6">
             <PaymentRequestsSection
               debts={debts}
               credits={credits}
@@ -437,7 +413,6 @@ export default function Dashboard() {
               onRejectCredit={handleRejectCredit}
             />
 
-            {/* Bank & VietQR Card */}
             <PaymentInfoCard
               paymentInfo={paymentInfo}
               onOpenEditModal={() => setIsPaymentInfoModalOpen(true)}
@@ -471,12 +446,10 @@ export default function Dashboard() {
 
       <PaymentInfoModal
         isOpen={isPaymentInfoModalOpen}
-        onClose={() => {
-          if (!isForceBankSetup) setIsPaymentInfoModalOpen(false);
-        }}
+        onClose={() => setIsPaymentInfoModalOpen(false)}
         currentInfo={paymentInfo}
         onSave={handleSavePaymentInfo}
-        isForceSetup={isForceBankSetup}
+        isForceSetup={false}
       />
     </div>
   );

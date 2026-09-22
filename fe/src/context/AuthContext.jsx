@@ -75,11 +75,20 @@ export function AuthProvider({ children }) {
 
   const register = async (name, email, password, bankInfo = null) => {
     try {
-      const res = await authApi.register({
+      const registerPayload = {
         fullName: name.trim(),
         email: email.trim(),
         password,
-      });
+      };
+
+      if (bankInfo && bankInfo.accountNumber) {
+        registerPayload.bankCode = bankInfo.bankCode;
+        registerPayload.bankName = bankInfo.bankName;
+        registerPayload.accountNumber = bankInfo.accountNumber;
+        registerPayload.accountHolderName = bankInfo.accountHolderName;
+      }
+
+      const res = await authApi.register(registerPayload);
 
       const authToken = res.accessToken || res.token;
       const loggedUser = res.user || {};
@@ -90,15 +99,6 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("token");
         setToken(authToken);
         setUser(loggedUser);
-
-        // Nếu có truyền kèm thông tin tài khoản ngân hàng, lưu ngay lập tức
-        if (bankInfo && bankInfo.accountNumber) {
-          try {
-            await paymentInfoApi.saveMyInfo(bankInfo);
-          } catch (infoErr) {
-            console.error("Không thể lưu thông tin STK ngân hàng ban đầu", infoErr);
-          }
-        }
       }
 
       return {

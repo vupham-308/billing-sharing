@@ -7,11 +7,13 @@ import com.kai.billingsharing.dto.request.RegisterRequest;
 import com.kai.billingsharing.dto.request.ResetPasswordRequest;
 import com.kai.billingsharing.dto.response.AuthResponse;
 import com.kai.billingsharing.dto.response.UserResponse;
+import com.kai.billingsharing.entity.PaymentInfo;
 import com.kai.billingsharing.entity.Token;
 import com.kai.billingsharing.entity.User;
 import com.kai.billingsharing.entity.enums.Role;
 import com.kai.billingsharing.entity.enums.TokenType;
 import com.kai.billingsharing.exception.AppException;
+import com.kai.billingsharing.repository.PaymentInfoRepository;
 import com.kai.billingsharing.repository.TokenRepository;
 import com.kai.billingsharing.repository.UserRepository;
 import com.kai.billingsharing.security.CustomUserDetails;
@@ -41,6 +43,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final TokenRepository tokenRepository;
+    private final PaymentInfoRepository paymentInfoRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
@@ -70,6 +73,22 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        // Lưu thông tin ngân hàng ngay khi đăng ký nếu người dùng nhập ở Bước 2
+        if (request.getAccountNumber() != null && !request.getAccountNumber().isBlank()
+                && request.getBankCode() != null && !request.getBankCode().isBlank()) {
+            PaymentInfo paymentInfo = PaymentInfo.builder()
+                    .user(savedUser)
+                    .bankCode(request.getBankCode().trim())
+                    .bankName(request.getBankName() != null ? request.getBankName().trim() : request.getBankCode().trim())
+                    .accountNumber(request.getAccountNumber().trim())
+                    .accountHolderName(request.getAccountHolderName() != null 
+                            ? request.getAccountHolderName().trim().toUpperCase() 
+                            : savedUser.getFullName().trim().toUpperCase())
+                    .build();
+            paymentInfoRepository.save(paymentInfo);
+            log.info("Đã lưu thông tin tài khoản ngân hàng khởi tạo cho user: {}", email);
+        }
 
         // Sinh token kích hoạt tài khoản (64 ký tự ngẫu nhiên)
         String secretKey = UUID.randomUUID().toString().replace("-", "")

@@ -3,11 +3,13 @@ package com.kai.billingsharing.service;
 import com.kai.billingsharing.dto.request.LoginRequest;
 import com.kai.billingsharing.dto.request.RegisterRequest;
 import com.kai.billingsharing.dto.response.AuthResponse;
+import com.kai.billingsharing.entity.PaymentInfo;
 import com.kai.billingsharing.entity.Token;
 import com.kai.billingsharing.entity.User;
 import com.kai.billingsharing.entity.enums.Role;
 import com.kai.billingsharing.entity.enums.TokenType;
 import com.kai.billingsharing.exception.AppException;
+import com.kai.billingsharing.repository.PaymentInfoRepository;
 import com.kai.billingsharing.repository.TokenRepository;
 import com.kai.billingsharing.repository.UserRepository;
 import com.kai.billingsharing.security.CustomUserDetails;
@@ -44,6 +46,9 @@ class AuthServiceTest {
 
     @Mock
     private TokenRepository tokenRepository;
+
+    @Mock
+    private PaymentInfoRepository paymentInfoRepository;
 
     @Mock
     private EmailService emailService;
@@ -112,6 +117,44 @@ class AuthServiceTest {
         verify(userRepository, times(1)).save(any(User.class));
         verify(tokenRepository, times(1)).save(any());
         verify(emailService, times(1)).sendAccountVerificationEmail(eq("kai@example.com"), anyString(), anyString(), eq(24));
+        verify(paymentInfoRepository, never()).save(any());
+    }
+
+    @Test
+    void testRegister_WithBankInfo_Success() {
+        RegisterRequest request = RegisterRequest.builder()
+                .email("kai_bank@example.com")
+                .password("plain_pass")
+                .fullName("Kai Nguyen")
+                .bankCode("TPB")
+                .bankName("Ngân hàng Tiên Phong")
+                .accountNumber("66205002815")
+                .accountHolderName("PHAM TUAN VU")
+                .build();
+
+        User unactivatedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("kai_bank@example.com")
+                .password("encoded_pass")
+                .fullName("Kai Nguyen")
+                .role(Role.USER)
+                .isActive(false)
+                .balance(0L)
+                .build();
+
+        when(userRepository.existsByEmail("kai_bank@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("plain_pass")).thenReturn("encoded_pass");
+        when(userRepository.save(any(User.class))).thenReturn(unactivatedUser);
+        when(tokenRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        verify(paymentInfoRepository, times(1)).save(argThat(info ->
+                "TPB".equals(info.getBankCode()) &&
+                "66205002815".equals(info.getAccountNumber()) &&
+                "PHAM TUAN VU".equals(info.getAccountHolderName())
+        ));
     }
 
     @Test
