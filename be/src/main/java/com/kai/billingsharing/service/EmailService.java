@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
+import org.springframework.web.util.HtmlUtils;
+import com.kai.billingsharing.exception.AppException;
+import org.springframework.http.HttpStatus;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,6 +28,10 @@ public class EmailService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, String> templateCache = new ConcurrentHashMap<>();
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
+    @Value("${app.frontend-url:https://kaidz.xyz}")
+    private String frontendUrl;
 
     @Value("${brevo.api-key:}")
     private String brevoApiKey;
@@ -36,6 +43,31 @@ public class EmailService {
     private String senderName;
 
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+
+    public void sendNewInvoiceDigest(NewInvoiceDigestReader.Digest digest) {
+        String date = digest.date().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        String base = frontendUrl.replaceAll("/+$", "");
+        String dashboard = base.endsWith("/billing-sharing") ? base : base + "/billing-sharing";
+        String html = "<div style='font-family:Arial,sans-serif;max-width:600px;margin:auto'>"
+                + "<h2>Bạn có hóa đơn mới</h2><p>Xin chào " + escape(digest.name()) + ",</p>"
+                + "<p>Bạn có tên trong danh sách chia tiền của <strong>" + digest.invoiceCount()
+                + " hóa đơn</strong> được tạo ngày " + date + ".</p>"
+                + "<h3>Công nợ hiện tại trên tất cả nhóm</h3>"
+                + "<p>Tổng còn nợ: <strong>" + money(digest.totalDebt()) + " VND</strong></p>"
+                + "<p>Tổng còn được nhận: <strong>" + money(digest.totalCredit()) + " VND</strong></p>"
+                + "<p>Số liệu tại thời điểm lập thông báo, bao gồm các khoản đang chờ xác nhận nhận tiền. "
+                + "Nếu đã chuyển và đang chờ duyệt, bạn không cần chuyển lại.</p>"
+                + "<p><a href='" + escape(dashboard) + "'>Xem hóa đơn và công nợ</a></p></div>";
+        sendBrevoEmail(digest.email(), digest.name(), "[Billing Sharing] Hóa đơn mới ngày " + date, html);
+    }
+
+    private static String money(long amount) {
+        return String.format(java.util.Locale.forLanguageTag("vi-VN"), "%,d", amount);
+    }
+
+    private static String escape(String value) {
+        return HtmlUtils.htmlEscape(value == null ? "" : value);
+    }
 
     public void sendPaymentReminderEmail(String toEmail, String debtorName, String creditorName, Long amount, String note, String qrUrl) {
         String subject = "[Billing Sharing] Nhắc nhở thanh toán nợ: " + (note != null ? note : "Hóa đơn chia tiền");
@@ -53,8 +85,8 @@ public class EmailService {
         String subject = "[Billing Sharing] Yêu cầu đặt lại mật khẩu của bạn";
         String template = loadTemplate("templates/email/reset-password.html");
         String htmlContent = template
-                .replace("{{userName}}", userName != null && !userName.isBlank() ? userName : "bạn")
-                .replace("{{resetLink}}", resetLink)
+                .replace("{{userName}}", userName != null && !userName.isBlank() ? escape(userName) : "bạn")
+                .replace("{{resetLink}}", escape(resetLink))
                 .replace("{{expiryMinutes}}", String.valueOf(expiryMinutes));
 
         sendBrevoEmail(toEmail, userName, subject, htmlContent);
@@ -64,8 +96,8 @@ public class EmailService {
         String subject = "[Billing Sharing] Xác nhận kích hoạt tài khoản của bạn";
         String template = loadTemplate("templates/email/verify-account.html");
         String htmlContent = template
-                .replace("{{userName}}", userName != null && !userName.isBlank() ? userName : "bạn")
-                .replace("{{verifyLink}}", verifyLink)
+                .replace("{{userName}}", userName != null && !userName.isBlank() ? escape(userName) : "bạn")
+                .replace("{{verifyLink}}", escape(verifyLink))
                 .replace("{{expiryHours}}", String.valueOf(expiryHours));
 
         sendBrevoEmail(toEmail, userName, subject, htmlContent);
@@ -76,18 +108,19 @@ public class EmailService {
         return templateCache.computeIfAbsent(path, p -> {
             try {
                 ClassPathResource resource = new ClassPathResource(p);
-                return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
+                try (var stream = resource.getInputStream()) {
+                    return StreamUtils.copyToString(stream, StandardCharsets.UTF_8);
+                }
             } catch (Exception e) {
                 log.error("Không thể nạp email template từ {}: {}", p, e.getMessage());
-                return "<p>Vui lòng bấm vào liên kết sau để đặt lại mật khẩu: <a href='{{resetLink}}'>{{resetLink}}</a></p>";
+                throw new IllegalStateException("Không thể nạp email template: " + p, e);
             }
         });
     }
 
-    private void sendBrevoEmail(String toEmail, String toName, String subject, String htmlContent) {
+    void sendBrevoEmail(String toEmail, String toName, String subject, String htmlContent) {
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
-            log.info("[MOCK EMAIL (Chưa cấu hình Brevo API Key)] Gửi đến: {} | Tiêu đề: {}\n{}", toEmail, subject, htmlContent);
-            return;
+            throw new AppException("Chưa cấu hình dịch vụ gửi email", HttpStatus.SERVICE_UNAVAILABLE);
         }
 
         try {
@@ -100,10 +133,6 @@ public class EmailService {
 
             String requestBody = objectMapper.writeValueAsString(payload);
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .build();
-
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(BREVO_API_URL))
                     .header("api-key", brevoApiKey.trim())
@@ -113,19 +142,29 @@ public class EmailService {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("Đã gửi email thành công qua Brevo tới: {} (Response: {})", toEmail, response.body());
+                log.info("Brevo đã tiếp nhận email, HTTP {}", response.statusCode());
             } else {
-                log.error("Brevo API trả về lỗi khi gửi mail tới {}: Status {} - Body: {}", toEmail, response.statusCode(), response.body());
+                throw new AppException("Dịch vụ gửi email trả về lỗi HTTP " + response.statusCode(), HttpStatus.SERVICE_UNAVAILABLE);
             }
+        } catch (AppException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AppException("Gửi email bị gián đoạn", HttpStatus.SERVICE_UNAVAILABLE);
         } catch (Exception e) {
-            log.error("Lỗi ngoại lệ khi gửi email qua Brevo tới {}: {}", toEmail, e.getMessage());
+            log.error("Không thể gửi email: {}", e.getClass().getSimpleName());
+            throw new AppException("Không thể kết nối dịch vụ gửi email", HttpStatus.SERVICE_UNAVAILABLE);
         }
     }
 
     private String buildReminderEmailContent(String debtorName, String creditorName, Long amount, String note, String qrUrl) {
+        debtorName = escape(debtorName);
+        creditorName = escape(creditorName);
+        note = note == null ? null : escape(note);
+        qrUrl = qrUrl == null ? null : escape(qrUrl);
         return "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"
                 + "<h2 style='color: #0284c7;'>Nhắc nhở thanh toán hóa đơn</h2>"
                 + "<p>Xin chào <strong>" + debtorName + "</strong>,</p>"
@@ -142,10 +181,13 @@ public class EmailService {
     }
 
     private String buildMonthlyStatementContent(String memberName, String groupName, Long totalDebt, List<String> details, String qrUrl) {
+        memberName = escape(memberName);
+        groupName = escape(groupName);
+        qrUrl = qrUrl == null ? null : escape(qrUrl);
         StringBuilder itemsHtml = new StringBuilder();
         if (details != null) {
             for (String item : details) {
-                itemsHtml.append("<li style='margin-bottom: 6px;'>").append(item).append("</li>");
+                itemsHtml.append("<li style='margin-bottom: 6px;'>").append(escape(item)).append("</li>");
             }
         }
 

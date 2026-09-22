@@ -1,6 +1,14 @@
 # Kế hoạch triển khai luồng email
 
-Trạng thái: đã thống nhất phạm vi, chưa triển khai mã nguồn.
+Trạng thái: triển khai một phần. Xem `email-flow-review.md` để biết phần đã làm và lỗi còn lại trong code; checklist dưới đây là kế hoạch, không phải xác nhận toàn bộ đã hoàn tất.
+
+## Bổ sung: thông báo hóa đơn mới lúc 08:00
+
+- Gửi cho user active có ít nhất một TransactionSharingMember thuộc hóa đơn được tạo ngày hôm trước, trong khoảng [00:00 hôm qua, 00:00 hôm nay) UTC+7.
+- Gom một email/người/ngày hóa đơn trên tất cả nhóm, bao gồm số hóa đơn mới và hai tổng công nợ hiện tại: còn nợ / còn được nhận.
+- Bao gồm công nợ chưa đến ngày chốt và ghi rõ khoản chờ duyệt chưa tất toán không phải yêu cầu chuyển lại.
+- Không thay thế sao kê 08:00 hoặc nhắc nợ 09:00. Khóa chống trùng của loại mail mới độc lập với các loại mail còn lại.
+- Đã thêm service, lưu dấu gửi trong DB và kiểm thử. Retry, outbox chung, xử lý UNKNOWN và chạy bù vẫn thuộc phần còn phải triển khai.
 
 ## 1. Quyết định nghiệp vụ đã chốt
 

@@ -2,7 +2,15 @@ import React from "react";
 import { Users, Calendar, ArrowRight, Plus, FolderKanban } from "lucide-react";
 import { formatVND } from "../utils/formatters";
 
-export default function GroupList({ groups = [], selectedGroupId, onSelectGroup, onOpenCreateGroup }) {
+export default function GroupList({
+  groups = [],
+  selectedGroupId,
+  onSelectGroup,
+  onOpenCreateGroup,
+  onOpenCreateModal,
+}) {
+  const handleOpenCreate = onOpenCreateGroup || onOpenCreateModal;
+
   return (
     <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
       <div className="flex items-center justify-between mb-5">
@@ -16,8 +24,9 @@ export default function GroupList({ groups = [], selectedGroupId, onSelectGroup,
           </div>
         </div>
         <button
-          onClick={onOpenCreateGroup}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70 px-3 py-1.5 rounded-lg transition-colors"
+          type="button"
+          onClick={handleOpenCreate}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Tạo nhóm</span>
@@ -118,8 +127,9 @@ export default function GroupList({ groups = [], selectedGroupId, onSelectGroup,
             <FolderKanban className="w-8 h-8 mx-auto mb-2 text-slate-300" />
             <p className="text-sm font-medium">Bạn chưa tham gia nhóm nào</p>
             <button
-              onClick={onOpenCreateGroup}
-              className="mt-2 text-xs font-semibold text-indigo-600 hover:underline"
+              type="button"
+              onClick={handleOpenCreate}
+              className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
             >
               + Bấm vào đây để tạo nhóm đầu tiên
             </button>

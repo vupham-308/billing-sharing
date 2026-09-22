@@ -374,9 +374,9 @@ export default function Dashboard() {
       {/* Main Container */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
         <HeroBalance
-          groups={groups}
-          debts={debts}
-          credits={credits}
+          user={user}
+          totalOwedToYou={totalOwedToYou}
+          totalYouOwe={totalYouOwe}
           onOpenCreateTransaction={() => setIsTxModalOpen(true)}
           onOpenCreateGroup={() => setIsGroupModalOpen(true)}
         />
@@ -389,6 +389,7 @@ export default function Dashboard() {
               groups={groups}
               selectedGroupId={selectedGroupId}
               onSelectGroup={handleSelectGroup}
+              onOpenCreateGroup={() => setIsGroupModalOpen(true)}
               onOpenCreateModal={() => setIsGroupModalOpen(true)}
             />
 

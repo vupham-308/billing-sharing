@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Users, Calendar, AlertCircle, Check } from "lucide-react";
 
 export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
@@ -8,9 +8,20 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setName("");
+      setDescription("");
+      setSelectedDays([25]);
+      setError("");
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const toggleDay = (day) => {
+    if (day < 1 || day > 27) return;
     if (selectedDays.includes(day)) {
       if (selectedDays.length === 1) {
         setError("Nhóm phải có ít nhất 1 ngày chốt sao kê");
@@ -24,7 +35,8 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
   };
 
   const applyPreset = (days) => {
-    setSelectedDays(days);
+    const validDays = days.filter((d) => d >= 1 && d <= 27);
+    setSelectedDays(validDays);
     setError("");
   };
 
@@ -38,6 +50,10 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
     }
     if (selectedDays.length === 0) {
       setError("Vui lòng chọn ít nhất 1 ngày chốt sao kê trong tháng");
+      return;
+    }
+    if (selectedDays.some((d) => d < 1 || d > 27)) {
+      setError("Ngày chốt sao kê chỉ hợp lệ từ ngày 1 đến ngày 27");
       return;
     }
 
@@ -125,9 +141,10 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
             <div className="flex flex-wrap gap-1.5 mb-2.5">
               {[
                 { label: "Ngày 25", days: [25] },
-                { label: "Ngày 15 & 30", days: [15, 30] },
+                { label: "Ngày 15 & 25", days: [15, 25] },
                 { label: "Ngày 1 & 15", days: [1, 15] },
-                { label: "Ngày 10, 20 & 30", days: [10, 20, 30] },
+                { label: "Ngày 10 & 20", days: [10, 20] },
+                { label: "Ngày 1, 10 & 20", days: [1, 10, 20] },
               ].map((preset) => (
                 <button
                   type="button"
@@ -144,16 +161,16 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
               ))}
             </div>
 
-            {/* Grid 31 days picker */}
+            {/* Grid 27 days picker (Chỉ cho phép từ ngày 1 đến ngày 27) */}
             <div className="grid grid-cols-7 gap-1 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+              {Array.from({ length: 27 }, (_, i) => i + 1).map((d) => {
                 const isSelected = selectedDays.includes(d);
                 return (
                   <button
                     type="button"
                     key={d}
                     onClick={() => toggleDay(d)}
-                    className={`h-7 rounded-lg text-xs font-semibold transition-all flex items-center justify-center ${
+                    className={`h-7 rounded-lg text-xs font-semibold transition-all flex items-center justify-center cursor-pointer ${
                       isSelected
                         ? "bg-indigo-600 text-white shadow-xs scale-95"
                         : "text-slate-700 hover:bg-white hover:text-indigo-600 hover:shadow-2xs"
@@ -167,7 +184,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
 
             <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:00 sáng vào các ngày đã chọn.</span>
+              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:00 sáng vào các ngày đã chọn (từ ngày 1 đến ngày 27).</span>
             </p>
           </div>
 

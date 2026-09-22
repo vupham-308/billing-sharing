@@ -99,6 +99,22 @@ class GroupServiceTest {
     }
 
     @Test
+    void testCreateGroup_InvalidSummaryDay_ThrowsBadRequest() {
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Nhóm Không Hợp Lệ")
+                .summaryDayOfMonth(List.of(15, 30))
+                .build();
+
+        AppException ex = assertThrows(AppException.class, () ->
+                groupService.createGroup(request, adminUserDetails)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("1 đến ngày 27"));
+        verify(groupRepository, never()).save(any());
+    }
+
+    @Test
     void testAddMember_Success() {
         UUID groupId = UUID.randomUUID();
         Group group = Group.builder()

@@ -36,9 +36,17 @@ public class GroupService {
     @Transactional
     public GroupResponse createGroup(CreateGroupRequest request, CustomUserDetails currentUser) {
         User creator = currentUser.getUser();
+
+        if (request.getSummaryDayOfMonth() != null && !request.getSummaryDayOfMonth().isEmpty()) {
+            boolean hasInvalidDay = request.getSummaryDayOfMonth().stream()
+                    .anyMatch(d -> d == null || d < 1 || d > 27);
+            if (hasInvalidDay) {
+                throw new AppException("Ngày chốt sao kê chỉ hợp lệ từ ngày 1 đến ngày 27", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         List<Integer> summaryDays = (request.getSummaryDayOfMonth() != null && !request.getSummaryDayOfMonth().isEmpty())
                 ? request.getSummaryDayOfMonth().stream()
-                        .filter(d -> d != null && d >= 1 && d <= 31)
                         .distinct()
                         .sorted()
                         .toList()

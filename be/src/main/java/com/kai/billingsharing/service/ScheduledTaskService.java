@@ -30,10 +30,10 @@ public class ScheduledTaskService {
      * Kiểm tra các nhóm có ngày tổng hợp (summaryDayOfMonth) là ngày hôm nay.
      * Tự động tổng hợp sao kê, tạo PaymentRequest ở trạng thái PENDING và gửi email tới thành viên.
      */
-    @Scheduled(cron = "0 0 8 * * ?")
+    @Scheduled(cron = "0 0 8 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional
     public void processMonthlyGroupSummary() {
-        int today = LocalDate.now().getDayOfMonth();
+        int today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).getDayOfMonth();
         log.info("Bắt đầu tiến trình tổng hợp sao kê hàng tháng cho ngày: {}", today);
 
         List<Group> groups = groupRepository.findBySummaryDayOfMonth(today);
@@ -117,7 +117,7 @@ public class ScheduledTaskService {
      * Chạy vào 9:00 AM hàng ngày:
      * Quét tất cả các PaymentRequest đang ở trạng thái PENDING và gửi email nhắc nhở thanh toán.
      */
-    @Scheduled(cron = "0 0 9 * * ?")
+    @Scheduled(cron = "0 0 9 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional(readOnly = true)
     public void sendDailyPendingReminders() {
         log.info("Bắt đầu tiến trình 9h sáng nhắc nhở các yêu cầu thanh toán PENDING...");
@@ -152,7 +152,7 @@ public class ScheduledTaskService {
      * Chạy vào 4:00 AM ngày 5 hàng tháng:
      * Dọn dẹp tất cả các password reset token đã hết hạn hoặc đã sử dụng để tối ưu cơ sở dữ liệu.
      */
-    @Scheduled(cron = "0 0 4 5 * ?")
+    @Scheduled(cron = "0 0 4 5 * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional
     public void cleanupExpiredAndUsedPasswordResetTokens() {
         log.info("Bắt đầu tiến trình 4:00 AM ngày 5 hàng tháng dọn dẹp các token đã hết hạn hoặc đã sử dụng...");
