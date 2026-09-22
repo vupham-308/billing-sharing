@@ -143,3 +143,54 @@ test("total amount input handles focus, editing raw digits, live preview, and bl
   fireEvent.blur(totalInput);
   expect(totalInput.value).toBe("3.432.330");
 });
+
+test("reopening or closing modal resets form fields so subsequent transactions start clean", async () => {
+  const submit = vi.fn().mockResolvedValue(undefined);
+  const { rerender } = render(
+    <CreateTransactionModal
+      isOpen={true}
+      groups={groups}
+      currentUserId="payer"
+      onClose={() => {}}
+      onSubmit={submit}
+    />
+  );
+  await screen.findByText("vu");
+
+  const titleInput = screen.getByPlaceholderText("VD: Tiền phòng tháng 9, Ăn lẩu...");
+  const totalInput = screen.getByLabelText("Tổng số tiền");
+
+  fireEvent.change(titleInput, { target: { value: "ăn tối" } });
+  fireEvent.change(totalInput, { target: { value: "300000" } });
+  expect(titleInput.value).toBe("ăn tối");
+  expect(totalInput.value).toBe("300.000");
+
+  // User submits or closes modal
+  rerender(
+    <CreateTransactionModal
+      isOpen={false}
+      groups={groups}
+      currentUserId="payer"
+      onClose={() => {}}
+      onSubmit={submit}
+    />
+  );
+
+  // User reopens modal to create a new transaction
+  rerender(
+    <CreateTransactionModal
+      isOpen={true}
+      groups={groups}
+      currentUserId="payer"
+      onClose={() => {}}
+      onSubmit={submit}
+    />
+  );
+  await screen.findByText("vu");
+
+  const newTitleInput = screen.getByPlaceholderText("VD: Tiền phòng tháng 9, Ăn lẩu...");
+  const newTotalInput = screen.getByLabelText("Tổng số tiền");
+
+  expect(newTitleInput.value).toBe("");
+  expect(newTotalInput.value).toBe("");
+});

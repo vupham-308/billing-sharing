@@ -530,6 +530,7 @@ export default function Dashboard() {
         isOpen={isTxModalOpen}
         onClose={() => setIsTxModalOpen(false)}
         groups={groups}
+        defaultGroupId={selectedGroupId}
         onSubmit={handleCreateTransaction}
         currentUserId={user?.id}
       />

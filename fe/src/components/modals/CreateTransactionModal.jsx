@@ -4,7 +4,14 @@ import { formatVND, formatNumber } from "../../utils/formatters";
 import { splitAmount } from "../../utils/splitAmount";
 import { groupApi } from "../../services/api";
 
-export default function CreateTransactionModal({ isOpen, onClose, groups = [], onSubmit, currentUserId }) {
+export default function CreateTransactionModal({
+  isOpen,
+  onClose,
+  groups = [],
+  onSubmit,
+  currentUserId,
+  defaultGroupId,
+}) {
   const [groupId, setGroupId] = useState("");
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
@@ -19,12 +26,49 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const amountInputRef = useRef(null);
+  const prevIsOpenRef = useRef(false);
+
+  const resetForm = () => {
+    setTitle("");
+    setTotalAmount("");
+    setIsAmountFocused(false);
+    setSplitType("EQUAL");
+    setCustomShares(null);
+    setShareDraft(null);
+    setError("");
+    setIsSubmitting(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   useEffect(() => {
-    if (isOpen && groups.length > 0 && !groupId) {
+    if (isOpen && !prevIsOpenRef.current) {
+      resetForm();
+      const chosenGroupId = (defaultGroupId && groups.some((g) => g.id === defaultGroupId))
+        ? defaultGroupId
+        : (groupId && groups.some((g) => g.id === groupId))
+          ? groupId
+          : (groups[0]?.id || "");
+      setGroupId(chosenGroupId);
+    } else if (isOpen && groups.length > 0 && (!groupId || !groups.some((g) => g.id === groupId))) {
       setGroupId(groups[0].id);
     }
-  }, [isOpen, groups, groupId]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, defaultGroupId, groups, groupId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !groupId) return;
@@ -174,6 +218,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
         totalAmount: numericTotal,
         shares,
       });
+      resetForm();
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Không thể tạo hóa đơn mới.");
@@ -183,7 +228,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-6">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -194,7 +246,8 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             <h3 className="font-bold text-slate-900 text-base">Thêm hóa đơn / Chi tiêu mới</h3>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleClose}
             className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
@@ -449,7 +502,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
             >
               Hủy
