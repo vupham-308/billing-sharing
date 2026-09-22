@@ -41,7 +41,7 @@ export default function Navbar({ onOpenCreateTransaction, onOpenCreateGroup, onO
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-slate-900 tracking-tight">ChiaTiền</span>
+                <span className="font-bold text-lg text-slate-900 tracking-tight">Billing Sharing</span>
                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                   Billing Sharing
                 </span>

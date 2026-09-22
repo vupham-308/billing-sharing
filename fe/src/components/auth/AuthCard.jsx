@@ -506,7 +506,7 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
               {mode === "LOGIN" && "Chào mừng bạn trở lại"}
               {mode === "REGISTER" &&
                 (registerStep === 1
-                  ? "Đăng ký tài khoản ChiaTiền"
+                  ? "Đăng ký tài khoản Billing Sharing"
                   : "Cài đặt tài khoản nhận tiền")}
               {mode === "FORGOT" && "Quên mật khẩu tài khoản"}
             </h2>

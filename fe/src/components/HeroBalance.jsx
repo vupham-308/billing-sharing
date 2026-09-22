@@ -62,7 +62,7 @@ export default function HeroBalance({
           }`}
         >
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-            <span>Số dư ròng tổng thể</span>
+            <span>Số dư</span>
           </div>
           <div
             className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${

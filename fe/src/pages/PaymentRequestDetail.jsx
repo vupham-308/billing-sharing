@@ -182,6 +182,11 @@ export default function PaymentRequestDetail() {
             <h1 className="text-xl font-bold mt-1">{request.transactionTitle || "Chi tiêu chia sẻ"}</h1>
             <div className="mt-3">
               <span className="text-3xl font-extrabold">{Number(request.amount).toLocaleString("vi-VN")} VND</span>
+              {request.breakdown && request.breakdown.nettedCredit > 0 && (
+                <div className="text-xs text-indigo-100 mt-1 font-medium">
+                  ✨ Đã cấn trừ 2 chiều: Nợ gốc {Number(request.breakdown.grossDebt).toLocaleString("vi-VN")} VND - Khấu trừ {Number(request.breakdown.nettedCredit).toLocaleString("vi-VN")} VND
+                </div>
+              )}
             </div>
 
             <div className="mt-3 flex items-center justify-center gap-2">
@@ -221,6 +226,82 @@ export default function PaymentRequestDetail() {
                 <p className="text-[11px] text-slate-500">{request.creditor?.email}</p>
               </div>
             </div>
+
+            {/* Netting Breakdown Section */}
+            {request.breakdown && (
+              <div className="p-4 bg-sky-50/70 rounded-xl border border-sky-200 text-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sky-950 text-sm flex items-center gap-1.5">
+                    ✨ Bảng giải trình cấn trừ bù trừ 2 chiều
+                  </h3>
+                  <span className="text-[11px] text-sky-700 font-semibold px-2 py-0.5 bg-sky-100 rounded-md">
+                    Pairwise Netting
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 p-2.5 bg-white rounded-lg border border-sky-100 text-center">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase">Khoản nợ gốc</span>
+                    <span className="font-bold text-rose-600 text-sm">
+                      {Number(request.breakdown.grossDebt).toLocaleString("vi-VN")} VND
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase">Nợ cấn trừ</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      -{Number(request.breakdown.nettedCredit).toLocaleString("vi-VN")} VND
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase">Thực chuyển</span>
+                    <span className="font-bold text-indigo-600 text-sm">
+                      {Number(request.breakdown.netAmount).toLocaleString("vi-VN")} VND
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-sky-100/60 rounded-md font-mono text-[11px] text-slate-700 text-center">
+                  <strong>Công thức:</strong> {request.breakdown.formula}
+                </div>
+
+                {/* Details Breakdown */}
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <span className="font-semibold text-rose-700 block mb-1">
+                      1. Các khoản chi tiêu {request.debtor?.fullName} nợ {request.creditor?.fullName}:
+                    </span>
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                      {request.breakdown.debtItems?.length > 0 ? (
+                        request.breakdown.debtItems.map((item, idx) => (
+                          <div key={idx} className="p-2 flex justify-between items-center text-[11px]">
+                            <span className="font-medium text-slate-800">{item.transactionTitle}</span>
+                            <span className="font-bold text-rose-600">+{Number(item.amount).toLocaleString("vi-VN")} VND</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-2 text-slate-400 text-center">Không có chi tiết</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {request.breakdown.nettedItems && request.breakdown.nettedItems.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-emerald-700 block mb-1">
+                        2. Các khoản đối phương ({request.creditor?.fullName}) nợ lại bạn (đã được khấu trừ):
+                      </span>
+                      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                        {request.breakdown.nettedItems.map((item, idx) => (
+                          <div key={idx} className="p-2 flex justify-between items-center text-[11px]">
+                            <span className="font-medium text-slate-800">{item.transactionTitle}</span>
+                            <span className="font-bold text-emerald-600">-{Number(item.amount).toLocaleString("vi-VN")} VND</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Note & Description */}
             <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-200 text-xs space-y-1">

@@ -1,198 +1,111 @@
 <!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sao kê chi tiêu nhóm</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #f8fafc;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      color: #1e293b;
-    }
-    .wrapper {
-      width: 100%;
-      background-color: #f8fafc;
-      padding: 30px 0;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      background-color: #ffffff;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
-      overflow: hidden;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    }
-    .header {
-      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-      padding: 28px 24px;
-      text-align: center;
-      color: #ffffff;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 700;
-    }
-    .header p {
-      margin: 6px 0 0;
-      font-size: 13px;
-      opacity: 0.9;
-    }
-    .body {
-      padding: 28px 24px;
-    }
-    .total-badge {
-      background-color: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center;
-      margin: 16px 0 24px;
-    }
-    .total-label {
-      font-size: 13px;
-      color: #991b1b;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .total-amount {
-      font-size: 24px;
-      font-weight: 800;
-      color: #dc2626;
-      margin-top: 4px;
-    }
-    .section-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: #0f172a;
-      border-bottom: 2px solid #e2e8f0;
-      padding-bottom: 8px;
-      margin: 24px 0 12px;
-    }
-    .item-card {
-      background-color: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .item-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 8px;
-    }
-    .item-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1e293b;
-    }
-    .item-amount {
-      font-size: 15px;
-      font-weight: 700;
-      color: #dc2626;
-    }
-    .item-creditor {
-      font-size: 13px;
-      color: #64748b;
-      margin-bottom: 12px;
-    }
-    .qr-container {
-      text-align: center;
-      margin: 12px 0;
-      padding: 10px;
-      background-color: #f8fafc;
-      border-radius: 8px;
-    }
-    .qr-img {
-      max-width: 200px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      display: block;
-      margin: 0 auto;
-    }
-    .qr-desc {
-      font-size: 12px;
-      color: #475569;
-      margin-top: 6px;
-      font-family: monospace;
-    }
-    .btn-action {
-      display: inline-block;
-      background-color: #0284c7;
-      color: #ffffff !important;
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 8px 18px;
-      border-radius: 6px;
-      margin-top: 6px;
-    }
-    .waiting-card {
-      background-color: #f8fafc;
-      border: 1px dashed #cbd5e1;
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 8px;
-    }
-    .btn-main-container {
-      text-align: center;
-      margin: 32px 0 16px;
-    }
-    .btn-main {
-      display: inline-block;
-      background: #0284c7;
-      color: #ffffff !important;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      padding: 12px 28px;
-      border-radius: 10px;
-    }
-    .footer {
-      padding: 16px;
-      text-align: center;
-      font-size: 12px;
-      color: #94a3b8;
-      background-color: #f8fafc;
-      border-top: 1px solid #e2e8f0;
-    }
-  </style>
-</head>
-<body>
-  <div class="wrapper">
-    <div class="container">
-      <div class="header">
-        <h1>Sao Kê Chi Tiêu Định Kỳ</h1>
-        <p>Nhóm: {{groupName}} • {{periodTitle}}</p>
-      </div>
-      <div class="body">
-        <p>Xin chào <strong>{{userName}}</strong>,</p>
-        <p>Hệ thống gửi bạn bảng tổng hợp sao kê chi tiêu trong nhóm <strong>{{groupName}}</strong> đến ngày hôm nay:</p>
+<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sao kê chi tiêu nhóm | Billing Sharing</title>
+<style>.total-badge{background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:24px;margin:24px 0;
+}
+.total-label{font-size:13px;color:#475569;
+}
+.total-amount{font-size:30px;line-height:1.4;color:#4338ca;font-weight:bold;margin-top:6px;
+}
+.section-title{font-size:18px;font-weight:bold;color:#0f172a;margin:28px 0 14px;
+}
+.item-card{border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:16px 0;
+}
+.item-header{margin-bottom:12px;
+}
+.item-title{display:block;font-size:15px;font-weight:bold;color:#0f172a;
+}
+.item-amount{display:block;font-size:22px;color:#be123c;font-weight:bold;margin:8px 0;
+}
+.item-creditor{font-size:13px;color:#475569;margin-bottom:12px;
+}
+.qr-container{text-align:center;background:#f8fafc;padding:16px;margin:16px 0;
+}
+.qr-img{width:200px;max-width:100%;height:auto;display:block;margin:0 auto;
+}
+.qr-desc{font-size:12px;color:#475569;overflow-wrap:anywhere;margin-top:8px;
+}
+.waiting-card{background:#fffbeb;border:1px solid #fde68a;padding:16px;margin:12px 0;border-radius:8px;
+}
+.stats-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin:24px 0;
+}
+.stat-row{padding:12px 0;border-bottom:1px solid #e2e8f0;
+}
+.stat-label{display:block;font-size:13px;color:#475569;
+}
+.stat-value-debt{display:block;font-size:26px;font-weight:bold;color:#be123c;
+}
+.stat-value-credit{display:block;font-size:26px;font-weight:bold;color:#047857;
+}
+.note-box{background:#eef2ff;border-left:3px solid #818cf8;padding:16px;margin:24px 0;font-size:13px;color:#334155;
+}
+.warning-box{background:#fffbeb;border-left:3px solid #fbbf24;padding:16px;margin:24px 0;font-size:13px;color:#78350f;
+}
+.raw-link{word-break:break-all;color:#4338ca;font-size:12px;margin:12px 0 24px;
+}
+.greeting{font-size:16px;margin:0 0 16px;
+}
+.content-text{margin:16px 0;
+}
+.info-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:24px 0;
+}
+.info-row{padding:8px 0;
+}
+.info-label{display:block;font-size:13px;color:#64748b;
+}
+.info-value{display:block;font-weight:bold;overflow-wrap:anywhere;
+}
+.btn{display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;
+}
+.btn-main{display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;
+}
+.btn-action{display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;
+}
+.cta-button{display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;
+}
+.btn-container{margin:28px 0 16px;text-align:center;
+}
+.btn-main-container{margin:28px 0 16px;text-align:center;
+}
+.cta-container{margin:28px 0 16px;text-align:center;
+}@media only screen and (max-width:620px){.content{padding:24px 18px!important}
+.outer{padding:12px 8px!important}h1{font-size:25px!important}}
+</style></head>
+<body style="margin:0;padding:0;background:#eef2f7;color:#1e293b;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">Sao kê chi tiêu nhóm — Thông báo từ Billing Sharing.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#eef2f7">
+<tr><td class="outer" align="center" style="padding:32px 12px">
+<!--[if mso]><table role="presentation" width="600" align="center">
+<tr><td><![endif]-->
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
+<tr><td class="content" bgcolor="#0f172a" style="padding:28px 32px;border-top:4px solid #818cf8;color:#ffffff">
+<p style="margin:0 0 20px;font-size:16px;font-weight:bold;letter-spacing:.3px;color:#c7d2fe">Billing Sharing</p>
+<h1 style="margin:0;font-size:28px;line-height:1.3;font-weight:bold">Sao kê chi tiêu nhóm</h1>
+<p style="margin:10px 0 0;font-size:13px;color:#cbd5e1">Quản lý chi tiêu · Chia sẻ minh bạch</p></td></tr>
 
-        <div class="total-badge">
-          <div class="total-label">Tổng số tiền bạn cần thanh toán</div>
-          <div class="total-amount">{{totalPendingDebt}} VND</div>
+<tr><td class="content" style="padding:28px 32px"><p style="color:#64748b;font-size:13px">Nhóm {{groupName}} · {{periodTitle}}
+</p><p>Xin chào <strong>{{userName}}
+</strong>,</p>
+        <p>Hệ thống gửi bạn bảng tổng hợp sao kê chi tiêu trong nhóm <strong>{{groupName}}
+</strong> đến ngày hôm nay:</p>
+
+        <div class="total-badge" style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:24px;margin:24px 0;">
+          <div class="total-label" style="font-size:13px;color:#475569;">Tổng số tiền bạn cần thanh toán</div>
+          <div class="total-amount" style="font-size:30px;line-height:1.4;color:#4338ca;font-weight:bold;margin-top:6px;">{{totalPendingDebt}} VND</div>
         </div>
 
-        <div class="section-title">📌 Các Khoản Cần Chuyển Khoản</div>
+        <div class="section-title" style="font-size:18px;font-weight:bold;color:#0f172a;margin:28px 0 14px;">📌 Các Khoản Cần Chuyển Khoản</div>
         {{pendingRowsHtml}}
 
         {{waitingSectionHtml}}
 
-        <div class="btn-main-container">
-          <a href="{{statementWebUrl}}" class="btn-main" target="_blank">Xem Lịch Sử Sao Kê Trên Web</a>
-        </div>
-      </div>
-      <div class="footer">
-        <p>ChiaTiền - Hệ thống quản lý và chia sẻ chi phí minh bạch</p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
+        <div class="btn-main-container" style="margin:28px 0 16px;text-align:center;">
+          <a href="{{statementWebUrl}}" class="btn-main" target="_blank" style="display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;">Xem Lịch Sử Sao Kê Trên Web</a>
+        </div></td></tr>
+
+<tr><td style="padding:20px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;text-align:center;font-size:12px;color:#64748b">
+<strong style="color:#334155">Billing Sharing</strong><br>Email tự động. Vui lòng không trả lời thư này.
+</td></tr>
+</table><!--[if mso]></td></tr>
+</table><![endif]-->
+</td></tr>
+</table></body></html>

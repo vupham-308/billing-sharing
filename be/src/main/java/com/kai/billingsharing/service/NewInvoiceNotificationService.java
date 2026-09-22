@@ -47,7 +47,7 @@ public class NewInvoiceNotificationService {
         }
 
         String dateStr = digest.date().format(DATE_FORMATTER);
-        String subject = "Tổng hợp hóa đơn mới ngày " + dateStr + " - ChiaTiền";
+        String subject = "Tổng hợp hóa đơn mới ngày " + dateStr + " - Billing Sharing";
         String htmlContent = emailService.buildInvoiceDigestHtml(
                 digest.name(),
                 dateStr,

@@ -310,6 +310,14 @@ export default function Dashboard() {
         amount: qrRes.amount,
         description: qrRes.description,
         qrUrl: qrRes.qrUrl,
+        mode: "PAYMENT_REQUEST",
+        status: qrRes.status || debtItem.status,
+        transactionTitle: qrRes.transactionTitle || debtItem.transactionTitle,
+        groupName: qrRes.groupName || debtItem.groupName,
+        creditorName: qrRes.creditorName || debtItem.toUserName,
+        originalAmount: qrRes.originalAmount ?? debtItem.originalAmount,
+        nettedAmount: qrRes.nettedAmount ?? debtItem.nettedAmount,
+        breakdown: qrRes.breakdown ?? debtItem.breakdown,
       });
       setIsQrModalOpen(true);
     } catch (err) {
@@ -328,11 +336,13 @@ export default function Dashboard() {
     }
     setSelectedQrData({
       id: "personal-qr",
+      mode: "PERSONAL",
       bankCode: paymentInfo.bankCode,
       accountNumber: paymentInfo.accountNumber,
       accountHolderName: paymentInfo.accountHolderName,
       amount: 0,
-      description: `ChiaTien ${user?.fullName || user?.name || "thanh toan"}`,
+      description: `Billing Sharing ${user?.fullName || user?.name || "thanh toan"}`,
+      qrUrl: paymentInfo.qrUrl || undefined,
     });
     setIsQrModalOpen(true);
   };
@@ -340,15 +350,30 @@ export default function Dashboard() {
   // Xác nhận đã chuyển tiền
   const handleConfirmPaid = async (paymentRequestId) => {
     try {
-      await paymentRequestApi.confirmPaid(paymentRequestId);
+      const response = await paymentRequestApi.confirmPaid(paymentRequestId);
       setDebts((prev) =>
         prev.map((d) => (d.id === paymentRequestId ? { ...d, status: "WAITING_APPROVE" } : d))
       );
       showToast("Đã xác nhận thanh toán! Đang chờ đối phương duyệt nhận tiền.");
+      return response;
     } catch (err) {
       showToast(err.response?.data?.message || "Không thể xác nhận thanh toán.");
+      throw err;
     }
   };
+
+  const handleRefreshQrStatus = useCallback(async (paymentRequestId) => {
+    const detail = await paymentRequestApi.getDetail(paymentRequestId);
+    setDebts((prev) =>
+      prev.map((debt) => (debt.id === paymentRequestId ? { ...debt, status: detail.status } : debt))
+    );
+    setSelectedQrData((previous) =>
+      previous?.paymentRequestId === paymentRequestId
+        ? { ...previous, status: detail.status }
+        : previous
+    );
+    return detail;
+  }, []);
 
   // Duyệt đã nhận tiền
   const handleApproveCredit = async (paymentRequestId) => {
@@ -518,6 +543,7 @@ export default function Dashboard() {
         onClose={() => setIsQrModalOpen(false)}
         qrData={selectedQrData}
         onConfirmPaid={handleConfirmPaid}
+        onRefreshStatus={handleRefreshQrStatus}
       />
 
       <PaymentInfoModal

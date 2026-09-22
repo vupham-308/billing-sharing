@@ -9,15 +9,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(
-    name = "payment_requests",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "UQ_payment_requests_sharing_member", columnNames = {"sharing_member_id"})
-    }
-)
+@Table(name = "payment_requests")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,12 +42,25 @@ public class PaymentRequest {
     private Integer rejectionCount = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id", nullable = false)
+    @JoinColumn(name = "group_id")
+    private Group group;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transaction_id")
     private Transaction transaction;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sharing_member_id", nullable = false)
+    @JoinColumn(name = "sharing_member_id")
     private TransactionSharingMember sharingMember;
+
+    @Builder.Default
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "payment_request_shares",
+        joinColumns = @JoinColumn(name = "payment_request_id"),
+        inverseJoinColumns = @JoinColumn(name = "sharing_member_id")
+    )
+    private List<TransactionSharingMember> sharingMembers = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "debtor_id", nullable = false)
@@ -62,6 +72,16 @@ public class PaymentRequest {
 
     @Column(name = "amount", nullable = false)
     private Long amount;
+
+    @Column(name = "original_amount")
+    private Long originalAmount;
+
+    @Column(name = "netted_amount")
+    private Long nettedAmount;
+
+    @Nationalized
+    @Column(name = "breakdown_json", columnDefinition = "NVARCHAR(MAX)")
+    private String breakdownJson;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

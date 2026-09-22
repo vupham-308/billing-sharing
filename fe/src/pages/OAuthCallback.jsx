@@ -90,7 +90,7 @@ export default function OAuthCallback() {
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-bold text-lg text-slate-900 tracking-tight">ChiaTiền</span>
+              <span className="font-bold text-lg text-slate-900 tracking-tight">Billing Sharing</span>
               <span className="text-[10px] font-medium px-2 py-0.5 ml-2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                 Google OAuth
               </span>

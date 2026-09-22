@@ -126,17 +126,17 @@ public class EmailService {
     public void sendNewInvoiceDigest(NewInvoiceDigestReader.Digest digest) {
         String dateStr = digest.date().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         String html = buildInvoiceDigestHtml(digest.name(), dateStr, digest.invoiceCount(), digest.totalDebt(), digest.totalCredit());
-        sendBrevoEmail(digest.email(), digest.name(), "Tổng hợp hóa đơn mới ngày " + dateStr + " - ChiaTiền", html);
+        sendBrevoEmail(digest.email(), digest.name(), "Tổng hợp hóa đơn mới ngày " + dateStr + " - Billing Sharing", html);
     }
 
     public void sendAccountVerificationEmail(String toEmail, String toName, String verifyLink, int expiryHours) {
         String html = buildAccountVerificationHtml(toName, verifyLink, expiryHours);
-        sendBrevoEmail(toEmail, toName, "Kích hoạt tài khoản ChiaTiền của bạn", html);
+        sendBrevoEmail(toEmail, toName, "Kích hoạt tài khoản Billing Sharing của bạn", html);
     }
 
     public void sendPasswordResetEmail(String toEmail, String toName, String resetLink, int expiryMinutes) {
         String html = buildPasswordResetHtml(toName, resetLink, expiryMinutes);
-        sendBrevoEmail(toEmail, toName, "Yêu cầu đặt lại mật khẩu - ChiaTiền", html);
+        sendBrevoEmail(toEmail, toName, "Yêu cầu đặt lại mật khẩu - Billing Sharing", html);
     }
 
     public void sendMonthlyStatementEmail(String toEmail, String toName, String groupName, long totalDebt, List<String> details, String qrUrl) {
@@ -146,7 +146,7 @@ public class EmailService {
 
     public void sendPaymentReminderEmail(String toEmail, String toName, String creditorName, long amount, String note, String qrUrl) {
         String html = "<p>Nhắc nợ: " + money(amount) + " VND từ " + escape(creditorName) + "</p>";
-        sendBrevoEmail(toEmail, toName, "Nhắc nhở thanh toán - ChiaTiền", html);
+        sendBrevoEmail(toEmail, toName, "Nhắc nhở thanh toán - Billing Sharing", html);
     }
 
     public String loadTemplate(String path) {

@@ -63,6 +63,7 @@ public class PaymentInfoService {
                 .accountHolderName(info.getAccountHolderName())
                 .sepayApiKey(info.getSepayApiKey())
                 .hasSepayApiKey(info.getSepayApiKey() != null && !info.getSepayApiKey().isBlank())
+                .qrUrl(info.buildQrUrl(null, "Billing Sharing " + info.getUser().getFullName()))
                 .updatedAt(info.getUpdatedAt())
                 .build();
     }

@@ -203,4 +203,53 @@ class PaymentRequestServiceTest {
         String debtorName = paymentRequestService.resolveDebtorName(debtor);
         assertEquals("Debtor User", debtorName);
     }
+
+    @Test
+    void testApprovePayment_MultiSharingMembers_ClearsAllShares() {
+        UUID reqId = UUID.randomUUID();
+        TransactionSharingMember share1 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .shareAmount(100000L)
+                .isPaid(false)
+                .user(debtor)
+                .build();
+        TransactionSharingMember share2 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .shareAmount(50000L)
+                .isPaid(false)
+                .user(creditor)
+                .build();
+
+        PaymentRequest nettedPr = PaymentRequest.builder()
+                .id(reqId)
+                .debtor(debtor)
+                .creditor(creditor)
+                .group(group)
+                .sharingMembers(java.util.List.of(share1, share2))
+                .amount(50000L)
+                .originalAmount(100000L)
+                .nettedAmount(50000L)
+                .breakdownJson("{\"grossDebt\":100000,\"nettedCredit\":50000,\"netAmount\":50000,\"formula\":\"100.000 VND - 50.000 VND = 50.000 VND\",\"debtorName\":\"Debtor\",\"creditorName\":\"Creditor\"}")
+                .status(PaymentRequestStatus.WAITING_APPROVE)
+                .build();
+
+        when(paymentRequestRepository.findById(reqId)).thenReturn(Optional.of(nettedPr));
+        when(paymentRequestRepository.save(any(PaymentRequest.class))).thenAnswer(i -> i.getArgument(0));
+        when(sharingMemberRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(groupMemberRepository.findByGroupIdAndUserId(any(), eq(debtor.getId()))).thenReturn(Optional.empty());
+        when(groupMemberRepository.findByGroupIdAndUserId(any(), eq(creditor.getId()))).thenReturn(Optional.empty());
+
+        PaymentRequestResponse res = paymentRequestService.approvePayment(reqId, creditorUserDetails);
+
+        assertNotNull(res);
+        assertEquals(PaymentRequestStatus.COMPLETED, res.getStatus());
+        assertTrue(share1.getIsPaid());
+        assertTrue(share2.getIsPaid());
+        assertNotNull(share1.getPaidAt());
+        assertNotNull(share2.getPaidAt());
+        assertNotNull(res.getBreakdown());
+        assertEquals(100000L, res.getBreakdown().getGrossDebt());
+        assertEquals(50000L, res.getBreakdown().getNettedCredit());
+        assertEquals(50000L, res.getBreakdown().getNetAmount());
+    }
 }

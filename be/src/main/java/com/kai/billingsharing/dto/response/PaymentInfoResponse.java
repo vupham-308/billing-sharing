@@ -21,5 +21,6 @@ public class PaymentInfoResponse {
     private String accountHolderName;
     private String sepayApiKey;
     private Boolean hasSepayApiKey;
+    private String qrUrl;
     private LocalDateTime updatedAt;
 }

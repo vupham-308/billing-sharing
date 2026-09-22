@@ -16,11 +16,16 @@ import java.util.UUID;
 public class PaymentRequestResponse {
 
     private UUID id;
+    private UUID groupId;
+    private String groupName;
     private UUID transactionId;
     private String transactionTitle;
     private UserResponse debtor;
     private UserResponse creditor;
     private Long amount;
+    private Long originalAmount;
+    private Long nettedAmount;
+    private PaymentRequestBreakdownResponse breakdown;
     private PaymentRequestStatus status;
     private String identify;
     private String note;

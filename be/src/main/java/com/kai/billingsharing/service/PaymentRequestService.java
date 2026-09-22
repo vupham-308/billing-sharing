@@ -1,9 +1,7 @@
 package com.kai.billingsharing.service;
 
-import com.kai.billingsharing.dto.response.PaymentQrResponse;
-import com.kai.billingsharing.dto.response.PaymentRequestResponse;
-import com.kai.billingsharing.dto.response.PaymentRequestsSummaryResponse;
-import com.kai.billingsharing.dto.response.UserResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kai.billingsharing.dto.response.*;
 import com.kai.billingsharing.entity.*;
 import com.kai.billingsharing.entity.enums.EmailType;
 import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
@@ -40,6 +38,7 @@ public class PaymentRequestService {
     private final UserRepository userRepository;
     private final EmailOutboxService emailOutboxService;
     private final EmailService emailService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(readOnly = true)
     public Object getMyPaymentRequests(String type, PaymentRequestStatus status, CustomUserDetails currentUser) {
@@ -102,15 +101,32 @@ public class PaymentRequestService {
 
         String qrUrl = paymentInfo.buildQrUrl(request.getAmount(), request.getNote());
 
+        PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(request.getBreakdownJson());
+        String transactionTitle = request.getTransaction() != null
+                ? request.getTransaction().getTitle()
+                : (breakdown != null && breakdown.getDebtItems() != null && !breakdown.getDebtItems().isEmpty()
+                    ? breakdown.getDebtItems().stream().map(PaymentRequestItemResponse::getTransactionTitle).collect(Collectors.joining(", "))
+                    : (request.getGroup() != null ? "Tất toán nhóm " + request.getGroup().getName() : "Tất toán công nợ"));
+        String groupName = request.getGroup() != null
+                ? request.getGroup().getName()
+                : (request.getTransaction() != null ? request.getTransaction().getGroup().getName() : "");
+
         return PaymentQrResponse.builder()
                 .requestId(request.getId())
                 .identify(request.getIdentify())
                 .amount(request.getAmount())
+                .originalAmount(request.getOriginalAmount())
+                .nettedAmount(request.getNettedAmount())
+                .breakdown(breakdown)
                 .bankCode(paymentInfo.getBankCode())
                 .accountNumber(paymentInfo.getAccountNumber())
                 .accountHolderName(paymentInfo.getAccountHolderName())
                 .description(request.getNote())
                 .qrUrl(qrUrl)
+                .status(request.getStatus())
+                .transactionTitle(transactionTitle)
+                .groupName(groupName)
+                .creditorName(creditor.getFullName())
                 .build();
     }
 
@@ -189,41 +205,52 @@ public class PaymentRequestService {
         PaymentRequest saved = paymentRequestRepository.save(request);
 
         // Đánh dấu TransactionSharingMember là đã thanh toán
-        TransactionSharingMember sharingMember = request.getSharingMember();
-        sharingMember.setIsPaid(true);
-        sharingMember.setPaidAt(now);
-        sharingMemberRepository.save(sharingMember);
+        if (request.getSharingMembers() != null && !request.getSharingMembers().isEmpty()) {
+            for (TransactionSharingMember sm : request.getSharingMembers()) {
+                sm.setIsPaid(true);
+                sm.setPaidAt(now);
+                sharingMemberRepository.save(sm);
+            }
+        } else if (request.getSharingMember() != null) {
+            TransactionSharingMember sharingMember = request.getSharingMember();
+            sharingMember.setIsPaid(true);
+            sharingMember.setPaidAt(now);
+            sharingMemberRepository.save(sharingMember);
+        }
 
         // Cập nhật lại số dư công nợ của User và GroupMember
         Long amount = request.getAmount();
         User debtor = request.getDebtor();
         User creditor = request.getCreditor();
-        Group group = request.getTransaction().getGroup();
+        Group group = request.getGroup() != null ? request.getGroup() : (request.getTransaction() != null ? request.getTransaction().getGroup() : null);
 
         debtor.setBalance(debtor.getBalance() + amount);
         creditor.setBalance(creditor.getBalance() - amount);
         userRepository.save(debtor);
         userRepository.save(creditor);
 
-        groupMemberRepository.findByGroupIdAndUserId(group.getId(), debtor.getId())
-                .ifPresent(gm -> {
-                    gm.setBalance(gm.getBalance() + amount);
-                    groupMemberRepository.save(gm);
-                });
+        if (group != null) {
+            groupMemberRepository.findByGroupIdAndUserId(group.getId(), debtor.getId())
+                    .ifPresent(gm -> {
+                        gm.setBalance(gm.getBalance() + amount);
+                        groupMemberRepository.save(gm);
+                    });
 
-        groupMemberRepository.findByGroupIdAndUserId(group.getId(), creditor.getId())
-                .ifPresent(gm -> {
-                    gm.setBalance(gm.getBalance() - amount);
-                    groupMemberRepository.save(gm);
-                });
+            groupMemberRepository.findByGroupIdAndUserId(group.getId(), creditor.getId())
+                    .ifPresent(gm -> {
+                        gm.setBalance(gm.getBalance() - amount);
+                        groupMemberRepository.save(gm);
+                    });
+        }
 
         // Ghi nhận EmailOutbox báo cho người nợ (Debtor)
         try {
             String businessKey = "PAYMENT_APPROVED:" + saved.getId() + ":" + saved.getVersion();
             String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + saved.getId();
+            String txTitle = saved.getTransaction() != null ? saved.getTransaction().getTitle() : "Tất toán công nợ";
             String message = "SEPAY_WEBHOOK".equalsIgnoreCase(source)
-                    ? "Hệ thống SePay đã tự động xác nhận giao dịch chuyển khoản cho khoản nợ \"" + saved.getTransaction().getTitle() + "\". Khoản nợ đã được hoàn tất thành công."
-                    : "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã xác nhận nhận tiền cho khoản nợ \"" + saved.getTransaction().getTitle() + "\". Khoản nợ đã được hoàn tất thành công.";
+                    ? "Hệ thống SePay đã tự động xác nhận giao dịch chuyển khoản cho \"" + txTitle + "\". Khoản nợ đã được hoàn tất thành công."
+                    : "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã xác nhận nhận tiền cho \"" + txTitle + "\". Khoản nợ đã được hoàn tất thành công.";
             String html = emailService.buildPaymentNotificationHtml(
                     "Thanh Toán Đã Được Duyệt Thành Công",
                     saved.getDebtor().getFullName(),
@@ -238,7 +265,7 @@ public class PaymentRequestService {
                     EmailType.PAYMENT_APPROVED,
                     saved.getDebtor().getEmail(),
                     saved.getDebtor().getFullName(),
-                    "Khoản nợ đã hoàn tất: " + saved.getTransaction().getTitle(),
+                    "Khoản nợ đã hoàn tất: " + txTitle,
                     html,
                     null,
                     businessKey,
@@ -274,7 +301,8 @@ public class PaymentRequestService {
         try {
             String businessKey = "PAYMENT_REJECTED:" + saved.getId() + ":" + nextRejection;
             String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + saved.getId();
-            String message = "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã từ chối xác nhận nhận tiền cho khoản nợ \"" + saved.getTransaction().getTitle() + "\". Vui lòng kiểm tra lại giao dịch hoặc chuyển khoản lại.";
+            String txTitle = saved.getTransaction() != null ? saved.getTransaction().getTitle() : "Tất toán công nợ";
+            String message = "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã từ chối xác nhận nhận tiền cho \"" + txTitle + "\". Vui lòng kiểm tra lại giao dịch hoặc chuyển khoản lại.";
             String html = emailService.buildPaymentNotificationHtml(
                     "Yêu Cầu Thanh Toán Bị Từ Chối",
                     saved.getDebtor().getFullName(),
@@ -289,7 +317,7 @@ public class PaymentRequestService {
                     EmailType.PAYMENT_REJECTED,
                     saved.getDebtor().getEmail(),
                     saved.getDebtor().getFullName(),
-                    "Yêu cầu thanh toán chưa được duyệt: " + saved.getTransaction().getTitle(),
+                    "Yêu cầu thanh toán chưa được duyệt: " + txTitle,
                     html,
                     null,
                     businessKey,
@@ -341,13 +369,33 @@ public class PaymentRequestService {
                 .map(info -> info.buildQrUrl(pr.getAmount(), pr.getNote()))
                 .orElse(null);
 
+        PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(pr.getBreakdownJson());
+        UUID transactionId = pr.getTransaction() != null ? pr.getTransaction().getId() : null;
+        String transactionTitle = pr.getTransaction() != null ? pr.getTransaction().getTitle() : null;
+        if (transactionTitle == null && breakdown != null && breakdown.getDebtItems() != null && !breakdown.getDebtItems().isEmpty()) {
+            transactionTitle = breakdown.getDebtItems().stream()
+                    .map(PaymentRequestItemResponse::getTransactionTitle)
+                    .collect(Collectors.joining(", "));
+        }
+        if (transactionTitle == null) {
+            transactionTitle = pr.getGroup() != null ? "Tất toán nhóm " + pr.getGroup().getName() : "Tất toán công nợ";
+        }
+
+        UUID groupId = pr.getGroup() != null ? pr.getGroup().getId() : (pr.getTransaction() != null ? pr.getTransaction().getGroup().getId() : null);
+        String groupName = pr.getGroup() != null ? pr.getGroup().getName() : (pr.getTransaction() != null ? pr.getTransaction().getGroup().getName() : null);
+
         return PaymentRequestResponse.builder()
                 .id(pr.getId())
-                .transactionId(pr.getTransaction().getId())
-                .transactionTitle(pr.getTransaction().getTitle())
+                .groupId(groupId)
+                .groupName(groupName)
+                .transactionId(transactionId)
+                .transactionTitle(transactionTitle)
                 .debtor(debtorRes)
                 .creditor(creditorRes)
                 .amount(pr.getAmount())
+                .originalAmount(pr.getOriginalAmount())
+                .nettedAmount(pr.getNettedAmount())
+                .breakdown(breakdown)
                 .status(pr.getStatus())
                 .identify(pr.getIdentify())
                 .note(pr.getNote())
@@ -356,6 +404,16 @@ public class PaymentRequestService {
                 .completedAt(pr.getCompletedAt())
                 .createdAt(pr.getCreatedAt())
                 .build();
+    }
+
+    public PaymentRequestBreakdownResponse parseBreakdownJson(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, PaymentRequestBreakdownResponse.class);
+        } catch (Exception e) {
+            log.warn("Không thể parse breakdownJson: {}", e.getMessage());
+            return null;
+        }
     }
 
     public String generateUniqueIdentify() {

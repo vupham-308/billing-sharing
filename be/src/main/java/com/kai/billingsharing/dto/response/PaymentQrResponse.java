@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
 
 import java.util.UUID;
 
@@ -21,4 +22,11 @@ public class PaymentQrResponse {
     private String accountHolderName;
     private String description;
     private String qrUrl;
+    private PaymentRequestStatus status;
+    private String transactionTitle;
+    private String groupName;
+    private String creditorName;
+    private Long originalAmount;
+    private Long nettedAmount;
+    private PaymentRequestBreakdownResponse breakdown;
 }

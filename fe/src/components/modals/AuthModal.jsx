@@ -102,7 +102,7 @@ export default function AuthModal({ isOpen, onClose }) {
               {isRegisterMode ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
             </div>
             <h3 className="font-bold text-slate-900 text-base">
-              {isRegisterMode ? "Đăng ký tài khoản ChiaTiền" : "Đăng nhập hệ thống"}
+              {isRegisterMode ? "Đăng ký tài khoản Billing Sharing" : "Đăng nhập hệ thống"}
             </h3>
           </div>
           <button
