@@ -18,6 +18,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByGroupId(UUID groupId);
 
     @Query("SELECT DISTINCT t FROM Transaction t " +
+            "LEFT JOIN FETCH t.payer " +
+            "LEFT JOIN FETCH t.group " +
+            "WHERE t.group.id = :groupId " +
+            "AND (:startDate IS NULL OR t.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR t.createdAt <= :endDate) " +
+            "ORDER BY t.createdAt ASC")
+    List<Transaction> findByGroupIdAndDateRange(
+            @Param("groupId") UUID groupId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("SELECT DISTINCT t FROM Transaction t " +
             "JOIN TransactionSharingMember tsm ON tsm.transaction = t " +
             "WHERE t.group.id = :groupId " +
             "AND (tsm.user.id = :userId OR t.payer.id = :userId) " +

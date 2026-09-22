@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   FileText,
   Calendar,
@@ -8,18 +8,26 @@ import {
   Check,
   QrCode,
   AlertCircle,
-  Clock,
   CheckCircle2,
   Receipt,
-  User,
   ExternalLink,
+  Wallet,
+  Users,
+  ArrowRight,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import { statementApi, groupApi, paymentRequestApi } from "../services/api";
+import { formatVND } from "../utils/formatters";
+import { useAuth } from "../context/AuthContext";
 
 export default function GroupStatementDetail() {
   const { groupId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [group, setGroup] = useState(null);
+  const [allGroups, setAllGroups] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
   const [statementData, setStatementData] = useState(null);
@@ -37,14 +45,19 @@ export default function GroupStatementDetail() {
       setLoading(true);
       setError("");
       try {
-        const [grp, periodList] = await Promise.all([
+        const [grp, periodList, groupsList] = await Promise.all([
           groupApi.getGroup(groupId),
           statementApi.getGroupStatements(groupId),
+          groupApi.getGroups().catch(() => []),
         ]);
         setGroup(grp);
+        setAllGroups(groupsList || []);
         setPeriods(periodList || []);
         if (periodList && periodList.length > 0) {
           setSelectedPeriodId(periodList[0].id);
+        } else {
+          setSelectedPeriodId(null);
+          setStatementData(null);
         }
       } catch (err) {
         setError(err.response?.data?.message || "Không thể tải thông tin kỳ sao kê của nhóm.");
@@ -74,6 +87,7 @@ export default function GroupStatementDetail() {
   }, [groupId, selectedPeriodId]);
 
   const handleCopy = (text, fieldName) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
@@ -96,24 +110,47 @@ export default function GroupStatementDetail() {
   };
 
   const snapshot = statementData?.snapshot;
-  const items = snapshot?.items || [];
+  const snapshotItems = snapshot?.items || [];
+  const transactions = statementData?.transactions || [];
+  const userSummary = statementData?.userSummary || {};
+
+  const myPaymentRequests = userSummary.paymentRequests || [];
+  const totalToTransfer = userSummary.totalToTransfer || 0;
+  const totalToReceive = userSummary.totalToReceive || 0;
+  const userGrossDebt = userSummary.userGrossDebt || 0;
+  const userGrossCredit = userSummary.userGrossCredit || 0;
+
+  // Tính tổng các khoản chi tiêu trong kỳ
+  const totalPeriodExpense = transactions.reduce((sum, tx) => sum + (tx.totalAmount || 0), 0);
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center justify-between">
+        {/* Navigation Breadcrumb & Group Switcher */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link
-            to={`/billing-sharing`}
+            to="/billing-sharing"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại bảng chi tiêu</span>
+            <span>Quay lại trang chủ</span>
           </Link>
-          {group && (
-            <span className="text-xs font-medium text-slate-500">
-              Nhóm: <strong className="text-slate-800">{group.name}</strong>
-            </span>
+
+          {allGroups.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">Đổi nhóm:</span>
+              <select
+                value={groupId}
+                onChange={(e) => navigate(`/billing-sharing/groups/${e.target.value}/statements`)}
+                className="px-2.5 py-1.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+              >
+                {allGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 
@@ -128,13 +165,20 @@ export default function GroupStatementDetail() {
         {/* Header Card */}
         <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <FileText className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Lịch Sử Sao Kê Nhóm</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900">Kỳ Sao Kê Nhóm</h1>
+                {group && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {group.name}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Xem lại báo cáo chốt công nợ bất biến nguyên bản qua các kỳ sao kê
+                Xem lại báo cáo chốt công nợ bất biến, chi tiết từng hóa đơn và số tiền cần chuyển
               </p>
             </div>
           </div>
@@ -142,7 +186,7 @@ export default function GroupStatementDetail() {
           {/* Period Selector */}
           {periods.length > 0 && (
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <span className="text-xs font-semibold text-slate-600 shrink-0">Chọn kỳ sao kê:</span>
+              <span className="text-xs font-semibold text-slate-600 shrink-0">Kỳ sao kê:</span>
               <select
                 value={selectedPeriodId || ""}
                 onChange={(e) => setSelectedPeriodId(e.target.value)}
@@ -165,7 +209,7 @@ export default function GroupStatementDetail() {
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-400">
             <Calendar className="w-10 h-10 mx-auto text-slate-300 mb-2" />
             <p className="text-sm font-medium">Nhóm này chưa có kỳ sao kê nào được chốt.</p>
-            <p className="text-xs text-slate-400 mt-1">Hệ thống sẽ tự động chốt sao kê vào 08:30 ngày đến hạn.</p>
+            <p className="text-xs text-slate-400 mt-1">Hệ thống sẽ tự động chốt sao kê vào 08:30 ngày đến hạn hoặc khi trưởng nhóm tất toán trước hạn.</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -192,29 +236,327 @@ export default function GroupStatementDetail() {
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                <span className="text-xs text-slate-400 font-medium block">Tổng công nợ cần thanh toán</span>
-                <span className="text-lg font-extrabold text-red-600 mt-0.5 block">
-                  {Number(snapshot?.totalPendingAmount || 0).toLocaleString("vi-VN")} VND
+                <span className="text-xs text-slate-400 font-medium block">Số tiền bạn cần chuyển</span>
+                <span
+                  className={`text-lg font-extrabold mt-0.5 block ${
+                    totalToTransfer > 0
+                      ? "text-rose-600"
+                      : totalToReceive > 0
+                      ? "text-emerald-600"
+                      : "text-slate-700"
+                  }`}
+                >
+                  {totalToTransfer > 0
+                    ? `${formatVND(totalToTransfer)}`
+                    : totalToReceive > 0
+                    ? `Được nhận ${formatVND(totalToReceive)}`
+                    : "0 ₫ (Đã hoàn tất)"}
                 </span>
                 <span className="text-xs text-slate-500 mt-1 block">
-                  {items.length} khoản nợ trong kỳ
+                  {totalToTransfer > 0
+                    ? `Cần chuyển cho ${myPaymentRequests.length} thành viên`
+                    : totalToReceive > 0
+                    ? "Các thành viên khác sẽ chuyển lại cho bạn"
+                    : "Không còn công nợ cần chuyển"}
                 </span>
               </div>
             </div>
 
-            {/* Snapshot Integrity Notice */}
-            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-800 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>
-                <strong>Bảo toàn lịch sử:</strong> Bảng sao kê dưới đây được phục hồi nguyên bản từ snapshot thời điểm chốt kỳ ({new Date(statementData?.processedAt).toLocaleDateString("vi-VN")}), không bị thay đổi bởi các giao dịch phát sinh sau này.
-              </span>
+            {/* Khối 1: TỔNG KẾT & QUYẾT TOÁN CỦA BẠN (Reconciliation) */}
+            <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Tổng Kết Quyết Toán Của Bạn Trong Kỳ</h3>
+                </div>
+                {totalToTransfer > 0 ? (
+                  <span className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                    Cần chuyển: {formatVND(totalToTransfer)}
+                  </span>
+                ) : totalToReceive > 0 ? (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                    Được nhận: {formatVND(totalToReceive)}
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                    Đã thanh toán đủ
+                  </span>
+                )}
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Banner giải thích công thức cấn trừ */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-slate-900">Chi tiết cấn trừ công nợ:</p>
+                    <p className="text-slate-600">
+                      • Tổng tiền các hóa đơn bạn tham gia chia tiền:{" "}
+                      <strong className="text-slate-900">{formatVND(userGrossDebt)}</strong>
+                    </p>
+                    {userGrossCredit > 0 && (
+                      <p className="text-emerald-700">
+                        • Cấn trừ từ các hóa đơn bạn đã chi trả cho nhóm:{" "}
+                        <strong>-{formatVND(userGrossCredit)}</strong>
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-left md:text-right pt-2 md:pt-0 border-t md:border-t-0 border-slate-200">
+                    <span className="text-slate-500 block text-[11px]">Tổng số tiền bạn cần chuyển:</span>
+                    <span className="text-lg font-extrabold text-rose-600">
+                      {formatVND(totalToTransfer)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Danh sách các lệnh thanh toán user cần chuyển */}
+                {myPaymentRequests.length > 0 ? (
+                  <div className="space-y-3 pt-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Các khoản bạn cần chuyển khoản ({myPaymentRequests.length} người nhận)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {myPaymentRequests.map((req, idx) => (
+                        <div
+                          key={req.requestId || idx}
+                          className="p-4 rounded-xl border border-rose-200 bg-rose-50/20 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="text-xs text-slate-500 block">Chuyển đến:</span>
+                              <span className="text-sm font-bold text-slate-900">{req.creditorName}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-slate-500 block">Số tiền:</span>
+                              <span className="text-base font-extrabold text-rose-600">
+                                {formatVND(req.amount)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Thông tin chuyển khoản */}
+                          {req.accountNumber ? (
+                            <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Ngân hàng:</span>
+                                <span className="font-semibold text-slate-800">
+                                  {req.bankName || req.bankCode}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Số tài khoản:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-slate-900">{req.accountNumber}</span>
+                                  <button
+                                    onClick={() => handleCopy(req.accountNumber, `stk-${idx}`)}
+                                    className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
+                                    title="Sao chép STK"
+                                  >
+                                    {copiedField === `stk-${idx}` ? (
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Chủ tài khoản:</span>
+                                <span className="font-medium text-slate-700">{req.accountHolderName}</span>
+                              </div>
+                              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                                <span className="text-slate-500">Nội dung CK:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-indigo-700">{req.description}</span>
+                                  <button
+                                    onClick={() => handleCopy(req.description, `nd-${idx}`)}
+                                    className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
+                                    title="Sao chép nội dung"
+                                  >
+                                    {copiedField === `nd-${idx}` ? (
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-amber-600 italic">Người nhận chưa thiết lập thông tin ngân hàng.</p>
+                          )}
+
+                          {/* Nút quét mã VietQR */}
+                          {req.accountNumber && (
+                            <button
+                              onClick={() => handleOpenQr(req)}
+                              className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                            >
+                              <QrCode className="w-4 h-4" />
+                              <span>Quét mã VietQR chuyển tiền</span>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : totalToReceive > 0 ? (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Bạn là người nhận tiền trong kỳ sao kê này. Các thành viên khác sẽ chuyển lại cho bạn tổng cộng{" "}
+                      <strong>{formatVND(totalToReceive)}</strong>.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Trong kỳ này bạn không có khoản nợ nào cần chuyển hoặc các khoản chi tiêu đã được cấn trừ hoàn toàn.
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Debts Table */}
+            {/* Khối 2: DANH SÁCH CHI TIẾT TỪNG HÓA ĐƠN TRONG KỲ (Transactions Table) */}
             <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900">Chi Tiết Các Khoản Nợ Trong Kỳ</h3>
-                <span className="text-xs text-slate-500">{items.length} khoản</span>
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Chi Tiết Từng Hóa Đơn Trong Kỳ</h3>
+                </div>
+                <div className="text-xs text-slate-500">
+                  Tổng {transactions.length} hóa đơn — Tổng tiền:{" "}
+                  <strong className="text-slate-900">{formatVND(totalPeriodExpense)}</strong>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3">Khoản chi tiêu</th>
+                      <th className="px-4 py-3">Tổng tiền</th>
+                      <th className="px-4 py-3">Người trả tiền</th>
+                      <th className="px-4 py-3">Bạn cần trả</th>
+                      <th className="px-4 py-3">Thành viên cùng chia</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                          Không có hóa đơn nào phát sinh trong khoảng thời gian của kỳ này.
+                        </td>
+                      </tr>
+                    ) : (
+                      transactions.map((tx) => {
+                        const hasUserShare = tx.currentUserShare > 0;
+                        return (
+                          <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                            {/* Khoản chi tiêu */}
+                            <td className="px-4 py-3">
+                              <p className="font-bold text-slate-900">{tx.title}</p>
+                              <span className="text-[11px] text-slate-400">
+                                {new Date(tx.createdAt).toLocaleDateString("vi-VN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            </td>
+
+                            {/* Tổng tiền ("total nhiêu") */}
+                            <td className="px-4 py-3 font-extrabold text-slate-900 text-sm">
+                              {formatVND(tx.totalAmount)}
+                            </td>
+
+                            {/* Người trả tiền ("ai trả") */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-800">{tx.payerName}</span>
+                                {tx.isUserPayer && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    Bạn
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Bạn cần trả bao nhiêu từ đó */}
+                            <td className="px-4 py-3">
+                              {hasUserShare ? (
+                                <div>
+                                  <span className="font-bold text-rose-600 text-sm">
+                                    {formatVND(tx.currentUserShare)}
+                                  </span>
+                                  {tx.isUserPayer && (
+                                    <span className="block text-[10px] text-slate-500">
+                                      (Bạn đã ứng cả hóa đơn)
+                                    </span>
+                                  )}
+                                </div>
+                              ) : tx.isUserPayer ? (
+                                <div>
+                                  <span className="font-semibold text-emerald-600">0 ₫</span>
+                                  <span className="block text-[10px] text-slate-500">
+                                    (Bạn đã ứng cả hóa đơn)
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">— (Không tham gia)</span>
+                              )}
+                            </td>
+
+                            {/* Thành viên cùng chia */}
+                            <td className="px-4 py-3 max-w-[280px]">
+                              <div className="flex flex-wrap gap-1">
+                                {(tx.shares || []).map((s, idx) => (
+                                  <span
+                                    key={s.userId || idx}
+                                    className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200"
+                                  >
+                                    {s.userName}: {formatVND(s.shareAmount)}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {transactions.length > 0 && (
+                    <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200 text-slate-800 text-xs">
+                      <tr>
+                        <td className="px-4 py-3">Tổng cộng ({transactions.length} hóa đơn)</td>
+                        <td className="px-4 py-3 text-slate-900 font-extrabold">{formatVND(totalPeriodExpense)}</td>
+                        <td className="px-4 py-3">—</td>
+                        <td className="px-4 py-3 text-rose-600 font-extrabold">
+                          {formatVND(userGrossDebt)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 font-normal">
+                          {userGrossCredit > 0 && `(Cấn trừ từ phần bạn đã trả: -${formatVND(userGrossCredit)})`}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* Khối 3: CHI TIẾT CÔNG NỢ TOÀN BỘ CẢ NHÓM (Snapshot Table) */}
+            <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Bảng Tổng Hợp Công Nợ Cả Nhóm Đã Chốt</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Lưu trữ bất biến tại thời điểm chốt kỳ ({new Date(statementData?.processedAt).toLocaleDateString("vi-VN")})
+                  </p>
+                </div>
+                <span className="text-xs text-slate-500">{snapshotItems.length} khoản nợ</span>
               </div>
 
               <div className="overflow-x-auto">
@@ -230,14 +572,14 @@ export default function GroupStatementDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {items.length === 0 ? (
+                    {snapshotItems.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                           Không có khoản nợ nào trong kỳ này.
                         </td>
                       </tr>
                     ) : (
-                      items.map((item, idx) => {
+                      snapshotItems.map((item, idx) => {
                         const isPending = item.status === "PENDING";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
@@ -256,7 +598,7 @@ export default function GroupStatementDetail() {
                               {item.creditorName}
                             </td>
                             <td className="px-4 py-3 font-bold text-red-600">
-                              {Number(item.amount).toLocaleString("vi-VN")} VND
+                              {formatVND(item.amount)}
                             </td>
                             <td className="px-4 py-3 max-w-[280px]">
                               {item.accountNumber ? (
@@ -347,7 +689,7 @@ export default function GroupStatementDetail() {
 
                 <div className="mt-3 text-xs space-y-1 text-slate-700">
                   <p className="font-bold text-red-600 text-sm">
-                    {Number(qrModalItem.amount).toLocaleString("vi-VN")} VND
+                    {formatVND(qrModalItem.amount)}
                   </p>
                   <p>Người nhận: <strong>{qrModalItem.creditorName}</strong></p>
                   <p className="text-[11px] font-mono text-slate-500">

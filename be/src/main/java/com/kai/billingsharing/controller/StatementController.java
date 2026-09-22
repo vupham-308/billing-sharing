@@ -2,10 +2,14 @@ package com.kai.billingsharing.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kai.billingsharing.entity.StatementPeriod;
+import com.kai.billingsharing.entity.Transaction;
+import com.kai.billingsharing.entity.TransactionSharingMember;
 import com.kai.billingsharing.entity.enums.Role;
 import com.kai.billingsharing.exception.AppException;
 import com.kai.billingsharing.repository.GroupMemberRepository;
 import com.kai.billingsharing.repository.StatementPeriodRepository;
+import com.kai.billingsharing.repository.TransactionRepository;
+import com.kai.billingsharing.repository.TransactionSharingMemberRepository;
 import com.kai.billingsharing.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -25,6 +30,8 @@ public class StatementController {
 
     private final StatementPeriodRepository statementPeriodRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final TransactionRepository transactionRepository;
+    private final TransactionSharingMemberRepository sharingMemberRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -84,13 +91,105 @@ public class StatementController {
         response.put("processedAt", period.getProcessedAt());
         response.put("status", period.getStatus());
 
+        Object snapshotObj = null;
         try {
-            Object snapshotObj = objectMapper.readValue(period.getSnapshotJson(), Object.class);
+            snapshotObj = objectMapper.readValue(period.getSnapshotJson(), Object.class);
             response.put("snapshot", snapshotObj);
         } catch (Exception e) {
             log.error("Lỗi parse snapshotJson của period {}: {}", periodId, e.getMessage());
             response.put("snapshot", null);
         }
+
+        // Truy vấn danh sách giao dịch chi tiết trong kỳ sao kê
+        List<Transaction> transactions = transactionRepository.findByGroupIdAndDateRange(
+                groupId, period.getStartDate(), period.getEndDate()
+        );
+
+        List<UUID> txIds = transactions.stream().map(Transaction::getId).toList();
+        List<TransactionSharingMember> allShares = txIds.isEmpty() ? List.of() : sharingMemberRepository.findByTransactionIdIn(txIds);
+        Map<UUID, List<TransactionSharingMember>> sharesByTx = allShares.stream()
+                .collect(Collectors.groupingBy(s -> s.getTransaction().getId()));
+
+        List<Map<String, Object>> txList = new ArrayList<>();
+        long userGrossDebt = 0L;
+        long userGrossCredit = 0L;
+
+        for (Transaction t : transactions) {
+            Map<String, Object> txMap = new LinkedHashMap<>();
+            txMap.put("id", t.getId());
+            txMap.put("title", t.getTitle());
+            txMap.put("totalAmount", t.getTotalAmount());
+            txMap.put("payerId", t.getPayer().getId());
+            txMap.put("payerName", t.getPayer().getFullName());
+            txMap.put("createdAt", t.getCreatedAt());
+
+            boolean isUserPayer = t.getPayer().getId().equals(currentUser.getId());
+            txMap.put("isUserPayer", isUserPayer);
+
+            List<TransactionSharingMember> shares = sharesByTx.getOrDefault(t.getId(), List.of());
+            long userShare = 0L;
+            List<Map<String, Object>> memberShares = new ArrayList<>();
+            for (TransactionSharingMember sm : shares) {
+                if (sm.getUser().getId().equals(currentUser.getId())) {
+                    userShare = sm.getShareAmount();
+                }
+                Map<String, Object> smMap = new LinkedHashMap<>();
+                smMap.put("userId", sm.getUser().getId());
+                smMap.put("userName", sm.getUser().getFullName());
+                smMap.put("shareAmount", sm.getShareAmount());
+                smMap.put("isPaid", Boolean.TRUE.equals(sm.getIsPaid()));
+                memberShares.add(smMap);
+            }
+            txMap.put("currentUserShare", userShare);
+            txMap.put("shares", memberShares);
+
+            if (!isUserPayer && userShare > 0) {
+                userGrossDebt += userShare;
+            } else if (isUserPayer) {
+                long othersOwe = t.getTotalAmount() - userShare;
+                userGrossCredit += othersOwe;
+            }
+
+            txList.add(txMap);
+        }
+        response.put("transactions", txList);
+
+        // Tính toán tổng kết các khoản cần chuyển / nhận của người dùng đang đăng nhập
+        Map<String, Object> userSummary = new LinkedHashMap<>();
+        userSummary.put("userGrossDebt", userGrossDebt);
+        userSummary.put("userGrossCredit", userGrossCredit);
+
+        long totalToTransfer = 0L;
+        long totalToReceive = 0L;
+        List<Map<String, Object>> myPaymentRequests = new ArrayList<>();
+
+        if (snapshotObj instanceof Map<?, ?> snapMap) {
+            Object itemsObj = snapMap.get("items");
+            if (itemsObj instanceof List<?> itemsList) {
+                for (Object itemObj : itemsList) {
+                    if (itemObj instanceof Map<?, ?> itemMap) {
+                        String debtorIdStr = String.valueOf(itemMap.get("debtorId"));
+                        String creditorIdStr = String.valueOf(itemMap.get("creditorId"));
+                        String myIdStr = currentUser.getId().toString();
+
+                        Number amtNum = (Number) itemMap.get("amount");
+                        long amt = amtNum != null ? amtNum.longValue() : 0L;
+
+                        if (myIdStr.equalsIgnoreCase(debtorIdStr)) {
+                            totalToTransfer += amt;
+                            myPaymentRequests.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
+                        } else if (myIdStr.equalsIgnoreCase(creditorIdStr)) {
+                            totalToReceive += amt;
+                        }
+                    }
+                }
+            }
+        }
+
+        userSummary.put("totalToTransfer", totalToTransfer);
+        userSummary.put("totalToReceive", totalToReceive);
+        userSummary.put("paymentRequests", myPaymentRequests);
+        response.put("userSummary", userSummary);
 
         return ResponseEntity.ok(response);
     }

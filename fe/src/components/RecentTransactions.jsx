@@ -211,87 +211,93 @@ export default function RecentTransactions({
       </div>
 
       {/* Filter & Sort Toolbar */}
-      <div className="pt-4 pb-2 space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center gap-2.5">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tên hóa đơn, người trả, nhóm..."
-              className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 placeholder-slate-400"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+      <div className="pt-4 pb-2 space-y-2.5">
+        {/* Row 1: Full Width Search Input */}
+        <div className="relative w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm theo tên hóa đơn, người trả, nhóm..."
+            className="w-full pl-10 pr-9 py-2 text-xs bg-slate-50/80 hover:bg-slate-100/70 focus:bg-white border border-slate-200/90 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800 placeholder-slate-400 shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title="Xóa tìm kiếm"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Filters & Sort Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* Status Filter */}
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full appearance-none text-xs bg-slate-50/80 hover:bg-slate-100/80 focus:bg-white border border-slate-200/90 rounded-xl pl-3 pr-8 py-2 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all shadow-2xs"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="PAID">Đã thanh toán</option>
+              <option value="UNPAID">Chưa thanh toán</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* Filter Group */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Status Filter */}
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="PAID">Đã thanh toán</option>
-                <option value="UNPAID">Chưa thanh toán</option>
-              </select>
-            </div>
+          {/* Type / Role Filter */}
+          <div className="relative">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full appearance-none text-xs bg-slate-50/80 hover:bg-slate-100/80 focus:bg-white border border-slate-200/90 rounded-xl pl-3 pr-8 py-2 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all shadow-2xs"
+            >
+              <option value="ALL">Tất cả vai trò</option>
+              <option value="PAYER">Bạn chi trả (Được nhận)</option>
+              <option value="DEBTOR">Phần của bạn (Cần trả)</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
 
-            {/* Type / Role Filter */}
-            <div className="relative">
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="ALL">Tất cả vai trò</option>
-                <option value="PAYER">Bạn chi trả (Được nhận)</option>
-                <option value="DEBTOR">Phần của bạn (Cần trả)</option>
-              </select>
-            </div>
-
-            {/* Sort Dropdown */}
-            <div className="relative flex items-center">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-xs bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="DATE_DESC">Mới nhất (Ngày giảm dần)</option>
-                <option value="DATE_ASC">Cũ nhất (Ngày tăng dần)</option>
-                <option value="AMOUNT_DESC">Số tiền: Cao → Thấp</option>
-                <option value="AMOUNT_ASC">Số tiền: Thấp → Cao</option>
-              </select>
-            </div>
-
-            {/* Reset Filter Button */}
-            {isFiltered && (
-              <button
-                onClick={handleResetFilters}
-                title="Xóa tất cả bộ lọc"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 rounded-xl transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Xóa lọc</span>
-              </button>
-            )}
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full appearance-none text-xs bg-slate-50/80 hover:bg-slate-100/80 focus:bg-white border border-slate-200/90 rounded-xl pl-3 pr-8 py-2 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all shadow-2xs"
+            >
+              <option value="DATE_DESC">Mới nhất (Ngày giảm dần)</option>
+              <option value="DATE_ASC">Cũ nhất (Ngày tăng dần)</option>
+              <option value="AMOUNT_DESC">Số tiền: Cao → Thấp</option>
+              <option value="AMOUNT_ASC">Số tiền: Thấp → Cao</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
+
+        {/* Active filter count & Reset button */}
+        {isFiltered && (
+          <div className="flex items-center justify-between pt-1 px-0.5 text-xs">
+            <span className="text-slate-500 text-[11px]">
+              Tìm thấy <strong className="text-slate-800 font-semibold">{totalCount}</strong> hóa đơn phù hợp
+            </span>
+            <button
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100/80 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Xóa bộ lọc</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Transaction List */}
-      <div className="divide-y divide-slate-100 mt-1">
+      <div className="divide-y divide-slate-100 mt-2">
         {paginatedTransactions.map((tx) => {
           const isPayer = tx.payerId === currentUserId || tx.payerName === "Bạn";
           // Find current user's share in this transaction
@@ -308,33 +314,36 @@ export default function RecentTransactions({
           const netEffect = isPayer ? tx.totalAmount - myShareAmount : -myShareAmount;
 
           return (
-            <div key={tx.id} className="py-3.5 hover:bg-slate-50/60 rounded-xl px-2 transition-colors">
+            <div
+              key={tx.id}
+              className="group py-3 px-2.5 hover:bg-slate-50/80 rounded-xl transition-all border border-transparent hover:border-slate-200/60 cursor-pointer"
+            >
               <div
-                className="flex items-center justify-between gap-3 cursor-pointer"
+                className="flex items-center justify-between gap-3"
                 onClick={() => toggleExpand(tx.id)}
               >
                 {/* Left: Icon & Title & Date */}
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 border border-slate-200">
-                    <Receipt className="w-5 h-5 text-indigo-600" />
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 border border-indigo-100/80 shadow-2xs">
+                    <Receipt className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-slate-900 text-sm">{tx.title}</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm truncate">{tx.title}</h3>
                       {tx.groupName && (
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/80">
                           {tx.groupName}
                         </span>
                       )}
                       {renderStatusBadge(isUserPaid)}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                      <span className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
+                      <span className="inline-flex items-center gap-1 shrink-0">
                         <Clock className="w-3 h-3 text-slate-400" />
                         {formatDate(tx.createdAt || tx.date)}
                       </span>
-                      <span>•</span>
-                      <span>
+                      <span className="text-slate-300">•</span>
+                      <span className="truncate">
                         Người trả:{" "}
                         <strong className="text-slate-700 font-medium">
                           {isPayer ? "Bạn" : tx.payerName}
@@ -346,13 +355,13 @@ export default function RecentTransactions({
                 </div>
 
                 {/* Right: Net Impact & Expand Icon */}
-                <div className="flex items-center gap-3 text-right shrink-0">
-                  <div>
-                    <span className="text-[11px] text-slate-500 block">
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-500 block font-medium">
                       {isPayer ? "Bạn được nhận lại" : "Phần của bạn"}
                     </span>
                     <span
-                      className={`text-sm font-bold ${
+                      className={`text-sm font-bold tracking-tight block ${
                         isPayer
                           ? "text-emerald-600"
                           : netEffect < 0
@@ -364,8 +373,18 @@ export default function RecentTransactions({
                       {formatVND(netEffect)}
                     </span>
                   </div>
-                  <div className="text-slate-400">
-                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      isExpanded
+                        ? "bg-indigo-50 text-indigo-600"
+                        : "text-slate-400 group-hover:text-slate-600 group-hover:bg-slate-100"
+                    }`}
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
                   </div>
                 </div>
               </div>

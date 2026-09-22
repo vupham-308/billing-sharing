@@ -1,5 +1,6 @@
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, Users, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Plus, Users, Wallet, FileText } from "lucide-react";
+import { Link } from "react-router-dom";
 import { formatVND } from "../utils/formatters";
 
 export default function HeroBalance({
@@ -9,6 +10,8 @@ export default function HeroBalance({
   onOpenCreateTransaction,
   onOpenCreateGroup,
   onOpenPaymentInfo,
+  groups = [],
+  selectedGroupId,
 }) {
   const netBalance = user?.balance ?? (totalOwedToYou - totalYouOwe);
   const isPositive = netBalance > 0;
@@ -41,11 +44,20 @@ export default function HeroBalance({
           </button>
           <button
             onClick={onOpenCreateGroup}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
           >
             <Users className="w-4 h-4 text-slate-600" />
             <span>Tạo nhóm mới</span>
           </button>
+          {groups.length > 0 && (
+            <Link
+              to={`/billing-sharing/groups/${selectedGroupId || groups[0].id}/statements`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors"
+            >
+              <FileText className="w-4 h-4 text-indigo-600" />
+              <span>Kỳ sao kê</span>
+            </Link>
+          )}
         </div>
       </div>
 

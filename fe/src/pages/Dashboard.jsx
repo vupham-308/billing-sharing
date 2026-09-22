@@ -467,6 +467,8 @@ export default function Dashboard() {
           totalYouOwe={totalYouOwe}
           onOpenCreateTransaction={() => setIsTxModalOpen(true)}
           onOpenCreateGroup={() => setIsGroupModalOpen(true)}
+          groups={groups}
+          selectedGroupId={selectedGroupId}
         />
 
         {/* 2-column layout */}

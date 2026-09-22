@@ -10,49 +10,68 @@ const groups = [{ id: "g1", name: "Nhóm", members: [
   { userId: "vu", fullName: "vu" }, { userId: "payer", fullName: "Payer" },
 ] }];
 
-test("shown amounts match submitted amounts and oversized custom edit snaps back", async () => {
+test("custom share entry preserves typed amount without auto-rebalance and disables submit until sum matches", async () => {
   const submit = vi.fn().mockResolvedValue(undefined);
   render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={submit} />);
   await screen.findByText("vu");
   fireEvent.change(screen.getByLabelText("Tổng số tiền"), { target: { value: "111111" } });
   expect(screen.getByLabelText("Số tiền của Payer").value).toBe("55.555");
   expect(screen.getByLabelText("Số tiền của vu").value).toBe("55.556");
+
   fireEvent.click(screen.getByRole("button", { name: "Tùy chỉnh số tiền từng người" }));
   fireEvent.change(screen.getByLabelText("Số tiền của vu"), { target: { value: "60000" } });
   expect(screen.getByLabelText("Số tiền của vu").value).toBe("60000");
   fireEvent.blur(screen.getByLabelText("Số tiền của vu"));
-  expect(screen.getByLabelText("Số tiền của vu").value).toBe("55.556");
+  // Vu keeps 60.000 without snapping back, Payer stays 55.555 without auto-rebalancing
+  expect(screen.getByLabelText("Số tiền của vu").value).toBe("60.000");
   expect(screen.getByLabelText("Số tiền của Payer").value).toBe("55.555");
+
+  // Sum (115.555) > Total (111.111): Submit button must be disabled
   fireEvent.change(screen.getByPlaceholderText("VD: Tiền phòng tháng 9, Ăn lẩu..."), { target: { value: "Dinner" } });
-  fireEvent.click(screen.getByRole("button", { name: "Xác nhận tạo hóa đơn" }));
+  const submitBtn = screen.getByRole("button", { name: "Xác nhận tạo hóa đơn" });
+  expect(submitBtn.disabled).toBe(true);
+
+  // Fix Payer's share to make total match exactly
+  fireEvent.change(screen.getByLabelText("Số tiền của Payer"), { target: { value: "51111" } });
+  fireEvent.blur(screen.getByLabelText("Số tiền của Payer"));
+  expect(screen.getByLabelText("Số tiền của Payer").value).toBe("51.111");
+  expect(submitBtn.disabled).toBe(false);
+
+  fireEvent.click(submitBtn);
   await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-    totalAmount: 111111, shares: [{ userId: "vu", shareAmount: 55556 }, { userId: "payer", shareAmount: 55555 }],
+    totalAmount: 111111, shares: [{ userId: "vu", shareAmount: 60000 }, { userId: "payer", shareAmount: 51111 }],
   })));
 });
 
-test("equal split remains editable, shows totals, submits edits and can split again", async () => {
+test("under-allocated shares show difference, disable submit, and equal split button resets", async () => {
   const submit = vi.fn().mockResolvedValue(undefined);
   render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={submit} />);
   await screen.findByText("vu");
   fireEvent.change(screen.getByLabelText("Tổng số tiền"), { target: { value: "111111" } });
   expect(screen.getByLabelText("Tổng đã chia / tổng hóa đơn").textContent.replace(/\s/g, " ")).toBe("111.111 ₫ / 111.111 ₫");
+  expect(screen.getByText("(Đã khớp)")).toBeTruthy();
+
+  // Edit vu to 50000
   fireEvent.change(screen.getByLabelText("Số tiền của vu"), { target: { value: "50000" } });
   expect(screen.getByLabelText("Số tiền của Payer").value).toBe("55.555");
   fireEvent.keyDown(screen.getByLabelText("Số tiền của vu"), { key: "Enter" });
   expect(submit).not.toHaveBeenCalled();
-  expect(screen.getByLabelText("Số tiền của Payer").value).toBe("61.111");
-  expect(screen.getByLabelText("Tổng đã chia / tổng hóa đơn").textContent.replace(/\s/g, " ")).toBe("111.111 ₫ / 111.111 ₫");
-  fireEvent.change(screen.getByPlaceholderText("VD: Tiền phòng tháng 9, Ăn lẩu..."), { target: { value: "Dinner" } });
-  fireEvent.click(screen.getByRole("button", { name: "Xác nhận tạo hóa đơn" }));
-  await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-    shares: [{ userId: "vu", shareAmount: 50000 }, { userId: "payer", shareAmount: 61111 }],
-  })));
+  // Payer MUST NOT be rebalanced
+  expect(screen.getByLabelText("Số tiền của Payer").value).toBe("55.555");
+  expect(screen.getByText(/Thiếu/)).toBeTruthy();
+
+  const submitBtn = screen.getByRole("button", { name: "Xác nhận tạo hóa đơn" });
+  expect(submitBtn.disabled).toBe(true);
+
+  // Clicking "Chia đều" resets everyone to balanced equal shares
   fireEvent.click(screen.getByRole("button", { name: /Chia đều/ }));
   expect(screen.getByLabelText("Số tiền của vu").value).toBe("55.556");
   expect(screen.getByLabelText("Số tiền của Payer").value).toBe("55.555");
+  expect(screen.getByText("(Đã khớp)")).toBeTruthy();
+  expect(submitBtn.disabled).toBe(false);
 });
 
-test("clearing and retyping does not rebalance until blur; an empty blur restores the amount", async () => {
+test("clearing and retyping does not alter others; an empty blur restores the amount", async () => {
   render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={vi.fn()} />);
   await screen.findByText("vu");
   fireEvent.change(screen.getByLabelText("Tổng số tiền"), { target: { value: "111111" } });
@@ -68,19 +87,22 @@ test("clearing and retyping does not rebalance until blur; an empty blur restore
   expect(screen.getByLabelText("Số tiền của vu").value).toBe("55.556");
   fireEvent.blur(input);
   expect(input.value).toBe("40.000");
-  expect(screen.getByLabelText("Số tiền của vu").value).toBe("71.111");
+  expect(screen.getByLabelText("Số tiền của vu").value).toBe("55.556");
 });
 
-test("submitting with an unblurred draft sends the committed values", async () => {
+test("submitting with an unblurred draft sends the committed values when sum matches", async () => {
   const submit = vi.fn().mockResolvedValue(undefined);
   render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={submit} />);
   await screen.findByText("vu");
-  fireEvent.change(screen.getByLabelText("Tổng số tiền"), { target: { value: "111111" } });
+  fireEvent.change(screen.getByLabelText("Tổng số tiền"), { target: { value: "100000" } });
   fireEvent.change(screen.getByPlaceholderText("VD: Tiền phòng tháng 9, Ăn lẩu..."), { target: { value: "Dinner" } });
-  fireEvent.change(screen.getByLabelText("Số tiền của vu"), { target: { value: "50000" } });
+  fireEvent.change(screen.getByLabelText("Số tiền của vu"), { target: { value: "60000" } });
+  fireEvent.blur(screen.getByLabelText("Số tiền của vu"));
+  // Unblurred draft for Payer
+  fireEvent.change(screen.getByLabelText("Số tiền của Payer"), { target: { value: "40000" } });
   fireEvent.submit(screen.getByRole("button", { name: "Xác nhận tạo hóa đơn" }).closest("form"));
   await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-    shares: [{ userId: "vu", shareAmount: 50000 }, { userId: "payer", shareAmount: 61111 }],
+    shares: [{ userId: "vu", shareAmount: 60000 }, { userId: "payer", shareAmount: 40000 }],
   })));
 });
 

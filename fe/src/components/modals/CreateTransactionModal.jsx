@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { X, Receipt, Check, AlertCircle } from "lucide-react";
 import { formatVND, formatNumber } from "../../utils/formatters";
-import { groupApi } from "../../services/api";
-import { splitAmount, editShare } from "../../utils/splitAmount";
+import { splitAmount } from "../../utils/splitAmount";
 
 export default function CreateTransactionModal({ isOpen, onClose, groups = [], onSubmit, currentUserId }) {
   const [groupId, setGroupId] = useState("");
@@ -15,6 +14,9 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   const [shareDraft, setShareDraft] = useState(null);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const amountInputRef = useRef(null);
+  const cursorPositionRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && groups.length > 0 && !groupId) {
@@ -54,19 +56,93 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
     };
   }, [isOpen, groupId, groups]);
 
-  if (!isOpen) return null;
-
   const handleAmountChange = (e) => {
-    const rawVal = e.target.value.replace(/\D/g, "");
+    const input = e.target;
+    const cursorPos = input.selectionStart ?? input.value.length;
+    const digitsBefore = input.value.slice(0, cursorPos).replace(/\D/g, "").length;
+
+    let rawVal = input.value.replace(/\D/g, "");
+    if (rawVal.length > 1 && rawVal.startsWith("0")) {
+      rawVal = rawVal.replace(/^0+/, "") || "0";
+    }
+
     if (rawVal && !Number.isSafeInteger(Number(rawVal))) {
       setError("Số tiền quá lớn để chia chính xác.");
       return;
     }
+
+    const nextFormatted = rawVal === "" ? "" : formatNumber(rawVal);
+
+    let targetPos = 0;
+    let digitCount = 0;
+    for (let i = 0; i < nextFormatted.length; i++) {
+      if (/\d/.test(nextFormatted[i])) {
+        digitCount++;
+      }
+      if (digitCount === digitsBefore) {
+        targetPos = i + 1;
+        break;
+      }
+    }
+    if (digitsBefore === 0) targetPos = 0;
+    if (digitCount < digitsBefore) targetPos = nextFormatted.length;
+
+    cursorPositionRef.current = targetPos;
     setTotalAmount(rawVal);
     setCustomShares(null);
     setShareDraft(null);
     setError("");
   };
+
+  const handleAmountKeyDown = (e) => {
+    if (e.key === "Backspace") {
+      const input = e.target;
+      const { selectionStart, selectionEnd } = input;
+      if (selectionStart === selectionEnd && selectionStart > 0) {
+        const charBefore = input.value[selectionStart - 1];
+        if (/\D/.test(charBefore)) {
+          e.preventDefault();
+          const val = input.value;
+          const newVal = val.slice(0, selectionStart - 2) + val.slice(selectionStart);
+          const rawVal = newVal.replace(/\D/g, "");
+          const digitsBefore = val.slice(0, selectionStart - 2).replace(/\D/g, "").length;
+
+          const nextFormatted = rawVal === "" ? "" : formatNumber(rawVal);
+          let targetPos = 0;
+          let digitCount = 0;
+          for (let i = 0; i < nextFormatted.length; i++) {
+            if (/\d/.test(nextFormatted[i])) digitCount++;
+            if (digitCount === digitsBefore) {
+              targetPos = i + 1;
+              break;
+            }
+          }
+          if (digitsBefore === 0) targetPos = 0;
+          if (digitCount < digitsBefore) targetPos = nextFormatted.length;
+
+          cursorPositionRef.current = targetPos;
+          setTotalAmount(rawVal);
+          setCustomShares(null);
+          setShareDraft(null);
+          setError("");
+        }
+      }
+    }
+  };
+
+  useLayoutEffect(() => {
+    if (cursorPositionRef.current !== null && amountInputRef.current) {
+      const pos = cursorPositionRef.current;
+      try {
+        amountInputRef.current.setSelectionRange(pos, pos);
+      } catch {
+        // Safe fallback in test environments
+      }
+      cursorPositionRef.current = null;
+    }
+  });
+
+  if (!isOpen) return null;
 
   const toggleMember = (id) => {
     setCustomShares(null);
@@ -83,23 +159,41 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   };
 
   const handleCustomShareChange = (memberId, value) => {
-    setShareDraft({ memberId, value: value.replace(/\D/g, "") });
+    setSplitType("CUSTOM");
+    let rawVal = value.replace(/\D/g, "");
+    if (rawVal.length > 1 && rawVal.startsWith("0")) {
+      rawVal = rawVal.replace(/^0+/, "") || "0";
+    }
+    setShareDraft({ memberId, value: rawVal });
+    setError("");
   };
 
   // Calculations
   const numericTotal = parseInt(totalAmount, 10) || 0;
   const equalShares = splitAmount(numericTotal, selectedMemberIds, currentUserId);
-  const displayedShares = customShares || equalShares;
+  const baseShares = customShares || equalShares;
+  const currentShares = shareDraft
+    ? { ...baseShares, [shareDraft.memberId]: shareDraft.value === "" ? 0 : Number(shareDraft.value) }
+    : baseShares;
+  const displayedShares = currentShares;
 
   const customSum = selectedMemberIds.reduce((sum, id) => sum + (displayedShares[id] || 0), 0);
-  const isCustomBalanced = Math.abs(customSum - numericTotal) === 0;
+  const diff = customSum - numericTotal;
+  const isCustomBalanced = numericTotal > 0 && diff === 0;
+  const hasInvalidShare = selectedMemberIds.some((id) => (displayedShares[id] || 0) < 1);
 
   const commitShareDraft = (memberId = shareDraft?.memberId) => {
-    if (!shareDraft || shareDraft.memberId !== memberId) return displayedShares;
-    // Clearing an input is allowed while typing; leaving it empty restores its last amount.
-    const next = shareDraft.value === "" ? displayedShares
-      : editShare(numericTotal, selectedMemberIds, currentUserId,
-          displayedShares, memberId, Number(shareDraft.value));
+    if (!shareDraft || (memberId && shareDraft.memberId !== memberId)) {
+      return customShares || equalShares;
+    }
+    if (shareDraft.value === "") {
+      setShareDraft(null);
+      setError("");
+      return customShares || equalShares;
+    }
+    const nextVal = Number(shareDraft.value);
+    const base = customShares || equalShares;
+    const next = { ...base, [shareDraft.memberId]: nextVal };
     setCustomShares(next);
     setShareDraft(null);
     setError("");
@@ -129,8 +223,9 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
     }
 
     const committedSum = selectedMemberIds.reduce((sum, id) => sum + (committedShares[id] || 0), 0);
-    if (numericTotal < selectedMemberIds.length || committedSum !== numericTotal) {
-      setError("Tổng tiền phải đủ ít nhất 1 đồng cho mỗi người và bằng tổng các phần chia.");
+    const hasInvalidCommitted = selectedMemberIds.some((id) => (committedShares[id] || 0) < 1);
+    if (numericTotal < selectedMemberIds.length || committedSum !== numericTotal || hasInvalidCommitted) {
+      setError("Tổng tiền chia phải bằng tổng hóa đơn và mỗi người phải có ít nhất 1 đồng.");
       return;
     }
     const shares = selectedMemberIds.map((id) => ({ userId: id, shareAmount: committedShares[id] }));
@@ -216,11 +311,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                 Tổng số tiền (VNĐ)
               </label>
               <input
+                ref={amountInputRef}
                 type="text"
                 placeholder="0"
                 aria-label="Tổng số tiền"
-                value={formatNumber(totalAmount)}
+                inputMode="numeric"
+                value={totalAmount === "" ? "" : formatNumber(totalAmount)}
                 onChange={handleAmountChange}
+                onKeyDown={handleAmountKeyDown}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
@@ -245,7 +343,12 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
               </button>
               <button
                 type="button"
-                onClick={() => setSplitType("CUSTOM")}
+                onClick={() => {
+                  setSplitType("CUSTOM");
+                  if (!customShares) {
+                    setCustomShares({ ...equalShares });
+                  }
+                }}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
                   splitType === "CUSTOM"
                     ? "border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-2xs"
@@ -255,7 +358,9 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                 Tùy chỉnh số tiền từng người
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Nhấn Enter hoặc rời ô để cập nhật phần chia. Số tiền vượt phần còn lại sẽ được giới hạn; khi giảm, tiền dư chuyển về người trả (hoặc người khác nếu đang sửa phần của người trả).</p>
+            <p className="mt-2 text-xs text-slate-500">
+              Nhập số tiền cho từng người. Tổng số tiền chia phải bằng chính xác tổng hóa đơn để có thể tạo.
+            </p>
           </div>
 
           {/* Danh sách người tham gia chia */}
@@ -264,14 +369,37 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Thành viên chia ({selectedMemberIds.length}/{members.length})
               </label>
+              <div className="flex items-center gap-1.5">
                 <span
                   aria-label="Tổng đã chia / tổng hóa đơn"
                   className={`text-xs font-semibold ${
-                    isCustomBalanced ? "text-emerald-600" : "text-rose-600"
+                    numericTotal > 0 && isCustomBalanced
+                      ? "text-emerald-600"
+                      : diff < 0
+                      ? "text-amber-600"
+                      : "text-rose-600"
                   }`}
                 >
                   {formatVND(customSum)} / {formatVND(numericTotal)}
                 </span>
+                {numericTotal > 0 && (
+                  <span
+                    className={`text-[11px] font-medium ${
+                      isCustomBalanced
+                        ? "text-emerald-600"
+                        : diff < 0
+                        ? "text-amber-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {isCustomBalanced
+                      ? "(Đã khớp)"
+                      : diff < 0
+                      ? `(Thiếu ${formatVND(Math.abs(diff))})`
+                      : `(Dư ${formatVND(diff)})`}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -314,8 +442,15 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                           type="text"
                           aria-label={`Số tiền của ${memberName}`}
                           inputMode="numeric"
-                          value={shareDraft?.memberId === memberId ? shareDraft.value : formatNumber(displayedShares[memberId] || "")}
+                          value={
+                            shareDraft?.memberId === memberId
+                              ? shareDraft.value
+                              : displayedShares[memberId] !== undefined && displayedShares[memberId] !== null
+                              ? formatNumber(displayedShares[memberId])
+                              : ""
+                          }
                           disabled={numericTotal < selectedMemberIds.length}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => handleCustomShareChange(memberId, e.target.value)}
                           onBlur={() => commitShareDraft(memberId)}
                           onKeyDown={(e) => {
@@ -352,8 +487,8 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50"
+              disabled={isSubmitting || numericTotal <= 0 || !isCustomBalanced || hasInvalidShare}
+              className="px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Đang tạo..." : "Xác nhận tạo hóa đơn"}
             </button>
