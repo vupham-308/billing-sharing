@@ -111,4 +111,24 @@ class BrevoWebhookControllerTest {
         ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(null, "mySecret123", null, "{}");
         assertEquals(200, response.getStatusCode().value());
     }
+
+    @Test
+    void testBrevoWebhook_AuthorizationBearer_AcceptsValidSecret() {
+        org.springframework.test.util.ReflectionTestUtils.setField(webhookController, "configuredSecret", "mySecret123");
+
+        ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(
+                null, null, "Bearer mySecret123", null, null, null, null, null, "{}"
+        );
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void testBrevoWebhook_XApiKeyHeader_AcceptsValidSecret() {
+        org.springframework.test.util.ReflectionTestUtils.setField(webhookController, "configuredSecret", "mySecret123");
+
+        ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(
+                null, "mySecret123", null, null, null, null, null, null, "{}"
+        );
+        assertEquals(200, response.getStatusCode().value());
+    }
 }

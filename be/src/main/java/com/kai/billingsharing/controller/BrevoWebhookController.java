@@ -34,8 +34,13 @@ public class BrevoWebhookController {
     @PostMapping("/brevo")
     public ResponseEntity<Map<String, String>> handleBrevoWebhook(
             @RequestHeader(value = "X-Webhook-Secret", required = false) String webhookSecretHeader,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKeyHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(value = "secret", required = false) String secretParam,
             @RequestParam(value = "token", required = false) String tokenParam,
+            @RequestParam(value = "apiKey", required = false) String apiKeyParam,
+            @RequestParam(value = "api_key", required = false) String apiKeySnakeParam,
+            @RequestParam(value = "key", required = false) String keyParam,
             @RequestBody String rawBody
     ) {
         log.info("Nhận Brevo Webhook payload: {}", rawBody);
@@ -43,12 +48,45 @@ public class BrevoWebhookController {
         // 1. Kiểm tra secret nếu có cấu hình trong hệ thống
         if (configuredSecret != null && !configuredSecret.isBlank()) {
             String trimmedSecret = configuredSecret.trim();
+
+            String extractedAuthToken = null;
+            if (authHeader != null && !authHeader.isBlank()) {
+                extractedAuthToken = authHeader.trim();
+                if (extractedAuthToken.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                    extractedAuthToken = extractedAuthToken.substring(7).trim();
+                } else if (extractedAuthToken.regionMatches(true, 0, "Apikey ", 0, 7)) {
+                    extractedAuthToken = extractedAuthToken.substring(7).trim();
+                } else if (extractedAuthToken.regionMatches(true, 0, "Basic ", 0, 6)) {
+                    try {
+                        String base64Credentials = extractedAuthToken.substring(6).trim();
+                        byte[] credDecoded = java.util.Base64.getDecoder().decode(base64Credentials);
+                        String credentials = new String(credDecoded, java.nio.charset.StandardCharsets.UTF_8);
+                        String[] values = credentials.split(":", 2);
+                        if (values.length > 0 && (trimmedSecret.equals(values[0]) || (values.length > 1 && trimmedSecret.equals(values[1])))) {
+                            extractedAuthToken = trimmedSecret;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
             boolean matchHeader = webhookSecretHeader != null && trimmedSecret.equals(webhookSecretHeader.trim());
+            boolean matchApiKeyHeader = apiKeyHeader != null && trimmedSecret.equals(apiKeyHeader.trim());
+            boolean matchAuthHeader = extractedAuthToken != null && trimmedSecret.equals(extractedAuthToken);
             boolean matchSecretParam = secretParam != null && trimmedSecret.equals(secretParam.trim());
             boolean matchTokenParam = tokenParam != null && trimmedSecret.equals(tokenParam.trim());
+            boolean matchApiKeyParam = apiKeyParam != null && trimmedSecret.equals(apiKeyParam.trim());
+            boolean matchApiKeySnakeParam = apiKeySnakeParam != null && trimmedSecret.equals(apiKeySnakeParam.trim());
+            boolean matchKeyParam = keyParam != null && trimmedSecret.equals(keyParam.trim());
 
-            if (!matchHeader && !matchSecretParam && !matchTokenParam) {
-                log.warn("Brevo Webhook bị từ chối: Sai hoặc thiếu webhook secret (header hoặc query param).");
+            if (!matchHeader && !matchApiKeyHeader && !matchAuthHeader && !matchSecretParam
+                    && !matchTokenParam && !matchApiKeyParam && !matchApiKeySnakeParam && !matchKeyParam) {
+                log.warn("Brevo Webhook bị từ chối: Sai hoặc thiếu webhook secret (headers: Authorization={}, X-Webhook-Secret={}, X-Api-Key={}; params: secret={}, token={}, apiKey={}).",
+                        authHeader != null ? "[CÓ]" : "[KHÔNG]",
+                        webhookSecretHeader != null ? "[CÓ]" : "[KHÔNG]",
+                        apiKeyHeader != null ? "[CÓ]" : "[KHÔNG]",
+                        secretParam != null ? "[CÓ]" : "[KHÔNG]",
+                        tokenParam != null ? "[CÓ]" : "[KHÔNG]",
+                        apiKeyParam != null ? "[CÓ]" : "[KHÔNG]");
                 throw new AppException("Webhook secret không hợp lệ", HttpStatus.UNAUTHORIZED);
             }
         }
@@ -67,6 +105,15 @@ public class BrevoWebhookController {
         }
 
         return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
+    public ResponseEntity<Map<String, String>> handleBrevoWebhook(
+            String webhookSecretHeader,
+            String secretParam,
+            String tokenParam,
+            String rawBody
+    ) {
+        return handleBrevoWebhook(webhookSecretHeader, null, null, secretParam, tokenParam, null, null, null, rawBody);
     }
 
     private void processSingleEvent(JsonNode node) {

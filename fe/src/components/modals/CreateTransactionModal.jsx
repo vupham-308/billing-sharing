@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X, Receipt, Check, AlertCircle } from "lucide-react";
 import { formatVND, formatNumber } from "../../utils/formatters";
 import { groupApi } from "../../services/api";
+import { splitAmount, editShare } from "../../utils/splitAmount";
 
 export default function CreateTransactionModal({ isOpen, onClose, groups = [], onSubmit, currentUserId }) {
   const [groupId, setGroupId] = useState("");
@@ -10,7 +11,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   const [splitType, setSplitType] = useState("EQUAL"); // "EQUAL" | "CUSTOM"
   const [members, setMembers] = useState([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
-  const [customShares, setCustomShares] = useState({});
+  const [customShares, setCustomShares] = useState(null);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,14 +42,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
         const allIds = groupMembers.map((m) => m.userId || m.id);
         setSelectedMemberIds(allIds);
 
-        // Khởi tạo custom shares
-        const count = allIds.length;
-        const parsedAmount = parseInt(totalAmount, 10) || 0;
-        const initialCustom = {};
-        allIds.forEach((id) => {
-          initialCustom[id] = count > 0 ? Math.round(parsedAmount / count) : 0;
-        });
-        setCustomShares(initialCustom);
+        setCustomShares(null);
       }
     }
 
@@ -62,20 +56,17 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
 
   const handleAmountChange = (e) => {
     const rawVal = e.target.value.replace(/\D/g, "");
-    setTotalAmount(rawVal);
-
-    if (splitType === "CUSTOM" && rawVal) {
-      const num = parseInt(rawVal, 10) || 0;
-      const count = selectedMemberIds.length;
-      const newShares = {};
-      selectedMemberIds.forEach((id) => {
-        newShares[id] = count > 0 ? Math.round(num / count) : 0;
-      });
-      setCustomShares(newShares);
+    if (rawVal && !Number.isSafeInteger(Number(rawVal))) {
+      setError("Số tiền quá lớn để chia chính xác.");
+      return;
     }
+    setTotalAmount(rawVal);
+    setCustomShares(null);
+    setError("");
   };
 
   const toggleMember = (id) => {
+    setCustomShares(null);
     setSelectedMemberIds((prev) => {
       const exists = prev.includes(id);
       if (exists) {
@@ -89,18 +80,16 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
 
   const handleCustomShareChange = (memberId, value) => {
     const rawVal = value.replace(/\D/g, "");
-    setCustomShares((prev) => ({
-      ...prev,
-      [memberId]: parseInt(rawVal, 10) || 0,
-    }));
+    setCustomShares((prev) => editShare(numericTotal, selectedMemberIds, currentUserId,
+      prev || equalShares, memberId, Number(rawVal)));
   };
 
   // Calculations
   const numericTotal = parseInt(totalAmount, 10) || 0;
-  const equalSharePerPerson =
-    selectedMemberIds.length > 0 ? Math.round(numericTotal / selectedMemberIds.length) : 0;
+  const equalShares = splitAmount(numericTotal, selectedMemberIds, currentUserId);
+  const displayedShares = customShares || equalShares;
 
-  const customSum = selectedMemberIds.reduce((sum, id) => sum + (customShares[id] || 0), 0);
+  const customSum = selectedMemberIds.reduce((sum, id) => sum + (displayedShares[id] || 0), 0);
   const isCustomBalanced = Math.abs(customSum - numericTotal) === 0;
 
   const handleSubmit = async (e) => {
@@ -124,27 +113,11 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
       return;
     }
 
-    let shares = [];
-    if (splitType === "EQUAL") {
-      let remainder = numericTotal - equalSharePerPerson * selectedMemberIds.length;
-      shares = selectedMemberIds.map((id, index) => ({
-        userId: id,
-        shareAmount: index === 0 ? equalSharePerPerson + remainder : equalSharePerPerson,
-      }));
-    } else {
-      if (!isCustomBalanced) {
-        setError(
-          `Tổng số tiền chia (${formatVND(customSum)}) chưa khớp với tổng hóa đơn (${formatVND(
-            numericTotal
-          )})`
-        );
-        return;
-      }
-      shares = selectedMemberIds.map((id) => ({
-        userId: id,
-        shareAmount: customShares[id] || 0,
-      }));
+    if (numericTotal < selectedMemberIds.length || !isCustomBalanced) {
+      setError("Tổng tiền phải đủ ít nhất 1 đồng cho mỗi người và bằng tổng các phần chia.");
+      return;
     }
+    const shares = selectedMemberIds.map((id) => ({ userId: id, shareAmount: displayedShares[id] }));
 
     setIsSubmitting(true);
     try {
@@ -229,6 +202,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
               <input
                 type="text"
                 placeholder="0"
+                aria-label="Tổng số tiền"
                 value={formatNumber(totalAmount)}
                 onChange={handleAmountChange}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -244,14 +218,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setSplitType("EQUAL")}
+                onClick={() => { setSplitType("EQUAL"); setCustomShares(null); setError(""); }}
                 className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
                   splitType === "EQUAL"
                     ? "border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-2xs"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Chia đều ({formatVND(equalSharePerPerson)} / người)
+                Chia đều (ưu tiên phần lẻ cho người trả)
               </button>
               <button
                 type="button"
@@ -265,6 +239,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                 Tùy chỉnh số tiền từng người
               </button>
             </div>
+            <p className="mt-2 text-xs text-slate-500">Phần chia được tính lại khi đổi tổng tiền hoặc thành viên. Khi giảm một phần chia, tiền còn lại tự chuyển về người trả (hoặc người khác nếu bạn đang sửa phần của người trả).</p>
           </div>
 
           {/* Danh sách người tham gia chia */}
@@ -273,15 +248,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 Thành viên chia ({selectedMemberIds.length}/{members.length})
               </label>
-              {splitType === "CUSTOM" && (
                 <span
+                  aria-label="Tổng đã chia / tổng hóa đơn"
                   className={`text-xs font-semibold ${
                     isCustomBalanced ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {formatVND(customSum)} / {formatVND(numericTotal)}
                 </span>
-              )}
             </div>
 
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -318,17 +292,13 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                       </span>
                     </div>
 
-                    {isSelected && splitType === "EQUAL" && (
-                      <span className="text-xs font-semibold text-slate-600">
-                        {formatVND(equalSharePerPerson)}
-                      </span>
-                    )}
-
-                    {isSelected && splitType === "CUSTOM" && (
+                    {isSelected && (
                       <div className="flex items-center gap-1.5 w-36">
                         <input
                           type="text"
-                          value={formatNumber(customShares[memberId] || "")}
+                          aria-label={`Số tiền của ${memberName}`}
+                          value={formatNumber(displayedShares[memberId] || "")}
+                          disabled={numericTotal < selectedMemberIds.length}
                           onChange={(e) => handleCustomShareChange(memberId, e.target.value)}
                           placeholder="0"
                           className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right text-slate-800 focus:outline-none focus:border-indigo-500"
