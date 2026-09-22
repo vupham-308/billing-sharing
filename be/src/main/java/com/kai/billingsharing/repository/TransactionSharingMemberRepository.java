@@ -26,6 +26,7 @@ public interface TransactionSharingMemberRepository extends JpaRepository<Transa
     @Query("SELECT s FROM TransactionSharingMember s JOIN FETCH s.user u " +
             "JOIN FETCH s.transaction t JOIN FETCH t.group JOIN FETCH t.payer " +
             "WHERE t.createdAt >= :start AND t.createdAt < :end AND u.isActive = true " +
+            "AND u.id <> t.payer.id " +
             "ORDER BY t.createdAt, t.id")
     List<TransactionSharingMember> findNewInvoiceShares(
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

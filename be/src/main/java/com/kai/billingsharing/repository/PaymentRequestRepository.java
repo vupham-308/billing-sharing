@@ -25,4 +25,6 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
     boolean existsBySharingMemberId(UUID sharingMemberId);
 
     Optional<PaymentRequest> findBySharingMemberId(UUID sharingMemberId);
+
+    List<PaymentRequest> findByTransactionGroupIdAndStatusIn(UUID groupId, java.util.Collection<PaymentRequestStatus> statuses);
 }

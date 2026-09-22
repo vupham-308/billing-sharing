@@ -10,6 +10,7 @@ import com.kai.billingsharing.dto.response.UserResponse;
 import com.kai.billingsharing.entity.PaymentInfo;
 import com.kai.billingsharing.entity.Token;
 import com.kai.billingsharing.entity.User;
+import com.kai.billingsharing.entity.enums.EmailType;
 import com.kai.billingsharing.entity.enums.Role;
 import com.kai.billingsharing.entity.enums.TokenType;
 import com.kai.billingsharing.exception.AppException;
@@ -31,7 +32,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -48,6 +51,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
+    private final EmailOutboxService emailOutboxService;
 
     @Value("${app.frontend-url:https://kaidz.xyz}")
     private String frontendUrl = "https://kaidz.xyz";
@@ -106,9 +110,21 @@ public class AuthService {
 
         String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
         String verifyLink = cleanFrontendUrl + "/verify-email?token=" + secretKey;
+        String html = emailService.buildAccountVerificationHtml(savedUser.getFullName(), verifyLink, 24);
+        String payloadJson = "{\"userId\":\"" + savedUser.getId() + "\",\"tokenId\":\"" + verificationToken.getId() + "\"}";
+        String businessKey = "EMAIL_VERIFICATION:" + savedUser.getId() + ":" + verificationToken.getId();
 
-        emailService.sendAccountVerificationEmail(savedUser.getEmail(), savedUser.getFullName(), verifyLink, 24);
-        log.info("Đã tạo mã kích hoạt tài khoản cho user: {} và gửi email xác thực.", email);
+        emailOutboxService.recordOutbox(
+                EmailType.EMAIL_VERIFICATION,
+                savedUser.getEmail(),
+                savedUser.getFullName(),
+                "Kích hoạt tài khoản ChiaTiền của bạn",
+                html,
+                payloadJson,
+                businessKey,
+                LocalDate.now()
+        );
+        log.info("Đã tạo outbox kích hoạt tài khoản cho user: {}", email);
 
         // Trả về thông tin user với isActive = false, accessToken = null
         return buildAuthResponse(savedUser, null);
@@ -179,9 +195,21 @@ public class AuthService {
 
         String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
         String verifyLink = cleanFrontendUrl + "/verify-email?token=" + secretKey;
+        String html = emailService.buildAccountVerificationHtml(user.getFullName(), verifyLink, 24);
+        String payloadJson = "{\"userId\":\"" + user.getId() + "\",\"tokenId\":\"" + newToken.getId() + "\"}";
+        String businessKey = "EMAIL_VERIFICATION:" + user.getId() + ":" + newToken.getId();
 
-        emailService.sendAccountVerificationEmail(user.getEmail(), user.getFullName(), verifyLink, 24);
-        log.info("Đã gửi lại email kích hoạt cho user: {}", normalizedEmail);
+        emailOutboxService.recordOutbox(
+                EmailType.EMAIL_VERIFICATION,
+                user.getEmail(),
+                user.getFullName(),
+                "Kích hoạt tài khoản ChiaTiền của bạn",
+                html,
+                payloadJson,
+                businessKey,
+                LocalDate.now()
+        );
+        log.info("Đã tạo outbox gửi lại email kích hoạt cho user: {}", normalizedEmail);
 
         return Map.of("message", "Email kích hoạt đã được gửi lại thành công! Vui lòng kiểm tra hộp thư của bạn.");
     }
@@ -232,9 +260,21 @@ public class AuthService {
 
             String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
             String resetLink = cleanFrontendUrl + "/reset-password?token=" + secretKey;
+            String html = emailService.buildPasswordResetHtml(user.getFullName(), resetLink, 15);
+            String payloadJson = "{\"userId\":\"" + user.getId() + "\",\"tokenId\":\"" + resetToken.getId() + "\"}";
+            String businessKey = "PASSWORD_RESET:" + user.getId() + ":" + resetToken.getId();
 
-            emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetLink, 15);
-            log.info("Đã tạo reset token cho user {} và gửi email hướng dẫn.", email);
+            emailOutboxService.recordOutbox(
+                    EmailType.PASSWORD_RESET,
+                    user.getEmail(),
+                    user.getFullName(),
+                    "Yêu cầu đặt lại mật khẩu - ChiaTiền",
+                    html,
+                    payloadJson,
+                    businessKey,
+                    LocalDate.now()
+            );
+            log.info("Đã tạo outbox đặt lại mật khẩu cho user: {}", email);
         } else {
             log.info("Yêu cầu quên mật khẩu cho email không tồn tại hoặc bị khóa: {}", email);
         }
@@ -259,6 +299,23 @@ public class AuthService {
 
         resetToken.setUsed(true);
         tokenRepository.save(resetToken);
+
+        String changedTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"));
+        String cleanFrontendUrl = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
+        String resetPasswordUrl = cleanFrontendUrl + "/forgot-password";
+        String html = emailService.buildPasswordChangedHtml(user.getFullName(), changedTime, resetPasswordUrl);
+        String businessKey = "PASSWORD_CHANGED:" + user.getId() + ":" + System.currentTimeMillis();
+
+        emailOutboxService.recordOutbox(
+                EmailType.PASSWORD_CHANGED,
+                user.getEmail(),
+                user.getFullName(),
+                "Thông báo bảo mật: Mật khẩu của bạn đã được thay đổi - ChiaTiền",
+                html,
+                null,
+                businessKey,
+                LocalDate.now()
+        );
 
         log.info("Đặt lại mật khẩu thành công cho user: {}", user.getEmail());
         return Map.of("message", "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.");

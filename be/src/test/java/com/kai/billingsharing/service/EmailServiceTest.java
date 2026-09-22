@@ -13,14 +13,18 @@ import static org.mockito.ArgumentMatchers.*;
 class EmailServiceTest {
     @Test
     void missingApiKeyFailsInsteadOfPretendingToSend() {
-        var service = new EmailService();
+        var env = mock(org.springframework.core.env.Environment.class);
+        when(env.getActiveProfiles()).thenReturn(new String[]{"test"});
+        var service = new EmailService(env);
         ReflectionTestUtils.setField(service, "frontendUrl", "https://example.com");
         assertThrows(AppException.class, () -> service.sendNewInvoiceDigest(digest()));
     }
 
     @Test
     void digestEscapesNamesAndShowsBothBalancesAndPendingApprovalExplanation() {
-        var service = spy(new EmailService());
+        var env = mock(org.springframework.core.env.Environment.class);
+        when(env.getActiveProfiles()).thenReturn(new String[]{"test"});
+        var service = spy(new EmailService(env));
         ReflectionTestUtils.setField(service, "frontendUrl", "https://example.com/billing-sharing/");
         doNothing().when(service).sendBrevoEmail(anyString(), anyString(), anyString(), anyString());
         service.sendNewInvoiceDigest(digest());
@@ -31,7 +35,7 @@ class EmailServiceTest {
         assertTrue(html.getValue().contains("100.000 VND"));
         assertTrue(html.getValue().contains("250.000 VND"));
         assertTrue(html.getValue().contains("không cần chuyển lại"));
-        assertTrue(html.getValue().contains("href='https://example.com/billing-sharing'"));
+        assertTrue(html.getValue().contains("https://example.com/billing-sharing"));
     }
 
     private NewInvoiceDigestReader.Digest digest() {

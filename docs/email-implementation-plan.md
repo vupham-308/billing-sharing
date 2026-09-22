@@ -4,17 +4,17 @@ Trạng thái: triển khai một phần. Xem `email-flow-review.md` để biế
 
 ## Bổ sung: thông báo hóa đơn mới lúc 08:00
 
-- Gửi cho user active có ít nhất một TransactionSharingMember thuộc hóa đơn được tạo ngày hôm trước, trong khoảng [00:00 hôm qua, 00:00 hôm nay) UTC+7.
+- Gửi cho user active có ít nhất một TransactionSharingMember thuộc hóa đơn do người khác trả được tạo ngày hôm trước, trong khoảng [00:00 hôm qua, 00:00 hôm nay) UTC+7. Loại phần chia của chính payer; user chỉ là payer không nhận thông báo. Số hóa đơn mới chỉ đếm các hóa đơn mà user được chia và không phải payer.
 - Gom một email/người/ngày hóa đơn trên tất cả nhóm, bao gồm số hóa đơn mới và hai tổng công nợ hiện tại: còn nợ / còn được nhận.
 - Bao gồm công nợ chưa đến ngày chốt và ghi rõ khoản chờ duyệt chưa tất toán không phải yêu cầu chuyển lại.
-- Không thay thế sao kê 08:00 hoặc nhắc nợ 09:00. Khóa chống trùng của loại mail mới độc lập với các loại mail còn lại.
+- Không thay thế sao kê 08:30 hoặc nhắc nợ 09:00. Khóa chống trùng của loại mail mới độc lập với các loại mail còn lại.
 - Đã thêm service, lưu dấu gửi trong DB và kiểm thử. Retry, outbox chung, xử lý UNKNOWN và chạy bù vẫn thuộc phần còn phải triển khai.
 
 ## 1. Quyết định nghiệp vụ đã chốt
 
 - Toàn hệ thống sử dụng múi giờ `Asia/Ho_Chi_Minh` (UTC+7).
 - Ngày chốt chỉ được là số nguyên từ 1 đến 27. Giữ khả năng chọn nhiều ngày. Backend từ chối giá trị không hợp lệ; không âm thầm lọc hoặc đổi thành ngày khác.
-- 08:00: chốt và gửi sao kê theo lịch của nhóm.
+- 08:30: chốt và gửi sao kê theo lịch của nhóm.
 - 09:00: gửi nhắc nợ, gom tất cả khoản PENDING của một người trong mọi nhóm vào một email duy nhất trong ngày.
 - Mỗi PaymentRequest có phần nội dung và QR riêng trong email tổng hợp. Không dùng QR của một khoản để đại diện tổng nhiều khoản.
 - WAITING_APPROVE không được đưa vào số tiền yêu cầu chuyển lại; COMPLETED không được nhắc nợ.
@@ -149,7 +149,7 @@ Mỗi request trong email có nút mở trang riêng của request. Nếu chưa 
 - [ ] Ngày 0, 28, 31 bị từ chối; ngày 1 và 27 hợp lệ; danh sách có phần tử lỗi không bị âm thầm lọc.
 - [ ] Một người, nhiều request, nhiều chủ nợ và nhiều nhóm → một email nhắc/ngày với đúng từng QR.
 - [ ] WAITING_APPROVE/COMPLETED không bị nhắc chuyển; khoản thay đổi trạng thái trước lúc gửi được loại.
-- [ ] Request mới sau lúc gửi được xử lý ngày sau; sao kê 08:00 vẫn độc lập với nhắc nợ 09:00.
+- [ ] Request mới sau lúc gửi được xử lý ngày sau; sao kê 08:30 vẫn độc lập với nhắc nợ 09:00.
 - [ ] Hai worker hoặc hai instance không tạo/gửi trùng công việc thông thường.
 - [ ] Rollback DB không phát sinh email; restart không làm mất công việc chờ gửi.
 - [ ] HTTP lỗi, timeout không rõ kết quả, giới hạn retry, token reset hết hạn trong hàng đợi.

@@ -184,7 +184,7 @@ export default function CreateGroupModal({ isOpen, onClose, onSubmit }) {
 
             <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:00 sáng vào các ngày đã chọn (từ ngày 1 đến ngày 27).</span>
+              <span>Hệ thống tự động tổng hợp & gửi mail sao kê lúc 08:30 sáng vào các ngày đã chọn (từ ngày 1 đến ngày 27).</span>
             </p>
           </div>
 

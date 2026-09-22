@@ -38,6 +38,12 @@ class PaymentRequestServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EmailOutboxService emailOutboxService;
+
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private PaymentRequestService paymentRequestService;
 

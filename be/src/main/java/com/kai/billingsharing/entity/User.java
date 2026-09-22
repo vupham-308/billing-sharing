@@ -45,6 +45,10 @@ public class User {
     private Boolean isActive = true;
 
     @Builder.Default
+    @Column(name = "is_email_bounced", nullable = false)
+    private Boolean isEmailBounced = false;
+
+    @Builder.Default
     @Column(name = "balance", nullable = false)
     private Long balance = 0L;
 

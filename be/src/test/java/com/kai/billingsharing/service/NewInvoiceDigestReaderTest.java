@@ -27,15 +27,15 @@ class NewInvoiceDigestReaderTest {
         User payer = user("payer");
         User other = user("other");
         Transaction first = transaction(payer);
-        Transaction second = transaction(member);
+        Transaction second = transaction(other);
         var firstShare = share(member, first, 100L);
-        var ownShare = share(member, second, 50L);
-        ownShare.setIsPaid(true);
+        var paidShare = share(member, second, 50L);
+        paidShare.setIsPaid(true);
         when(repository.findNewInvoiceShares(date.atStartOfDay(), date.plusDays(1).atStartOfDay()))
-                .thenReturn(List.of(firstShare, firstShare, ownShare));
-        // Old debts also count; paid own share does not appear in outstanding query.
+                .thenReturn(List.of(firstShare, firstShare, paidShare));
+        // Old debts also count; paid shares do not appear in outstanding query.
         when(repository.findOutstandingForUsers(Set.of(member.getId())))
-                .thenReturn(List.of(firstShare, share(member, transaction(payer), 200L), share(other, second, 700L)));
+                .thenReturn(List.of(firstShare, share(member, transaction(payer), 200L), share(other, transaction(member), 700L)));
 
         var digests = reader.read(date);
         assertEquals(1, digests.size());

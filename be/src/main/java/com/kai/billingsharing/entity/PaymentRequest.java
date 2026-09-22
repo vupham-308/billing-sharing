@@ -12,7 +12,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "payment_requests")
+@Table(
+    name = "payment_requests",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "UQ_payment_requests_sharing_member", columnNames = {"sharing_member_id"})
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +30,19 @@ public class PaymentRequest {
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
+
+    @Version
+    @Builder.Default
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
+    @Builder.Default
+    @Column(name = "confirmation_count", nullable = false)
+    private Integer confirmationCount = 0;
+
+    @Builder.Default
+    @Column(name = "rejection_count", nullable = false)
+    private Integer rejectionCount = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id", nullable = false)

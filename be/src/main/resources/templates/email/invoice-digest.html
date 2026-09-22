@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hóa đơn mới và tổng quan công nợ</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #f8fafc;
+      padding: 30px 0;
+    }
+    .container {
+      max-width: 580px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .header {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      padding: 28px 24px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .header p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+    .body {
+      padding: 28px 24px;
+    }
+    .stats-card {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .stat-row:last-child {
+      border-bottom: none;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #475569;
+    }
+    .stat-value-debt {
+      font-size: 16px;
+      font-weight: 700;
+      color: #dc2626;
+    }
+    .stat-value-credit {
+      font-size: 16px;
+      font-weight: 700;
+      color: #16a34a;
+    }
+    .note-box {
+      background-color: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #1e40af;
+      margin: 20px 0;
+      line-height: 1.5;
+    }
+    .btn-container {
+      text-align: center;
+      margin: 28px 0 16px;
+    }
+    .btn {
+      display: inline-block;
+      background: #4f46e5;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 12px 28px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+    }
+    .footer {
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      background-color: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1>Thông Báo Hóa Đơn Mới</h1>
+        <p>Tổng hợp chi phí phát sinh ngày {{date}}</p>
+      </div>
+      <div class="body">
+        <p>Xin chào <strong>{{userName}}</strong>,</p>
+        <p>Bạn có tên trong danh sách chia tiền của <strong>{{invoiceCount}} hóa đơn</strong> mới do người khác chi trả hôm qua.</p>
+        
+        <div class="stats-card">
+          <div class="stat-row">
+            <span class="stat-label">Tổng tiền bạn cần trả (còn nợ):</span>
+            <span class="stat-value-debt">{{totalDebt}} VND</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Tổng tiền người khác còn nợ bạn:</span>
+            <span class="stat-value-credit">{{totalCredit}} VND</span>
+          </div>
+        </div>
+
+        <div class="note-box">
+          ℹ️ <strong>Lưu ý:</strong> Số liệu trên tổng hợp công nợ hiện tại trên tất cả các nhóm (bao gồm các khoản chưa đến kỳ sao kê và các khoản đang chờ duyệt). Nếu khoản nào bạn đã chuyển và đang chờ chủ nợ xác nhận, bạn <strong>không cần chuyển lại</strong>.
+        </div>
+
+        <div class="btn-container">
+          <a href="{{dashboardUrl}}" class="btn" target="_blank">Mở Bảng Chi Tiêu ChiaTiền</a>
+        </div>
+      </div>
+      <div class="footer">
+        <p>Email tự động từ hệ thống ChiaTiền (Billing Sharing) • Vui lòng không trả lời thư này.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

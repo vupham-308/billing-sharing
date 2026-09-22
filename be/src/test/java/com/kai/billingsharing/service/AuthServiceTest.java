@@ -54,6 +54,9 @@ class AuthServiceTest {
     private EmailService emailService;
 
     @Mock
+    private EmailOutboxService emailOutboxService;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -116,7 +119,16 @@ class AuthServiceTest {
 
         verify(userRepository, times(1)).save(any(User.class));
         verify(tokenRepository, times(1)).save(any());
-        verify(emailService, times(1)).sendAccountVerificationEmail(eq("kai@example.com"), anyString(), anyString(), eq(24));
+        verify(emailOutboxService, times(1)).recordOutbox(
+                eq(com.kai.billingsharing.entity.enums.EmailType.EMAIL_VERIFICATION),
+                eq("kai@example.com"),
+                any(),
+                anyString(),
+                any(),
+                any(),
+                anyString(),
+                any()
+        );
         verify(paymentInfoRepository, never()).save(any());
     }
 

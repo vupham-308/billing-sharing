@@ -1,16 +1,22 @@
 package com.kai.billingsharing.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kai.billingsharing.entity.*;
+import com.kai.billingsharing.entity.enums.EmailType;
 import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
 import com.kai.billingsharing.repository.*;
+import com.kai.billingsharing.util.PaymentDescriptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
@@ -22,46 +28,52 @@ public class ScheduledTaskService {
     private final TransactionSharingMemberRepository sharingMemberRepository;
     private final PaymentRequestRepository paymentRequestRepository;
     private final PaymentInfoRepository paymentInfoRepository;
+    private final StatementPeriodRepository statementPeriodRepository;
+    private final EmailOutboxService emailOutboxService;
     private final EmailService emailService;
     private final TokenRepository tokenRepository;
+    private final Clock businessClock;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
-     * Chạy vào 8:00 AM hàng ngày:
-     * Kiểm tra các nhóm có ngày tổng hợp (summaryDayOfMonth) là ngày hôm nay.
-     * Tự động tổng hợp sao kê, tạo PaymentRequest ở trạng thái PENDING và gửi email tới thành viên.
+     * Chạy vào 08:30 AM hàng ngày (UTC+7):
+     * 1. Chỉ áp dụng cho các ngày từ 1 đến 27.
+     * 2. Quản lý kỳ chuẩn xác (startDate lấy endDate kỳ trước, lưu snapshotJson).
+     * 3. Mỗi PaymentRequest sinh đúng 1 mã VietQR riêng biệt kèm đúng số tiền (tuyệt đối không gộp).
+     * 4. Ghi nhận vào EmailOutbox với type = STATEMENT.
      */
-    @Scheduled(cron = "0 0 8 * * ?", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "0 30 8 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional
     public void processMonthlyGroupSummary() {
-        int today = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).getDayOfMonth();
-        log.info("Bắt đầu tiến trình tổng hợp sao kê hàng tháng cho ngày: {}", today);
+        LocalDate todayDate = LocalDate.now(businessClock);
+        int today = todayDate.getDayOfMonth();
 
+        if (today < 1 || today > 27) {
+            log.info("Ngày hôm nay ({}) không nằm trong khoảng chốt sao kê 1-27 hàng tháng, bỏ qua.", today);
+            return;
+        }
+
+        log.info("Bắt đầu tiến trình 08:30 sáng tổng hợp sao kê nhóm cho ngày: {}", today);
         List<Group> groups = groupRepository.findBySummaryDayOfMonth(today);
+
         for (Group group : groups) {
             try {
-                processSummaryForGroup(group);
+                processSummaryForGroup(group, todayDate);
             } catch (Exception e) {
-                log.error("Lỗi khi tổng hợp sao kê cho nhóm {}: {}", group.getName(), e.getMessage());
+                log.error("Lỗi khi tổng hợp sao kê cho nhóm {}: {}", group.getName(), e.getMessage(), e);
             }
         }
     }
 
     @Transactional
-    public void processSummaryForGroup(Group group) {
+    public void processSummaryForGroup(Group group, LocalDate todayDate) {
+        // 1. Đồng bộ các khoản chi tiêu chưa thanh toán thành PaymentRequest PENDING (nếu chưa tạo)
         List<TransactionSharingMember> unpaidShares = sharingMemberRepository
                 .findByTransactionGroupIdAndIsPaidFalse(group.getId());
 
-        if (unpaidShares.isEmpty()) {
-            log.info("Nhóm {} không có khoản nợ chưa thanh toán trong kỳ này.", group.getName());
-            return;
-        }
-
-        // Gom các khoản nợ theo từng Debtor (người nợ)
-        Map<User, List<TransactionSharingMember>> debtorSharesMap = new HashMap<>();
         for (TransactionSharingMember share : unpaidShares) {
-            debtorSharesMap.computeIfAbsent(share.getUser(), k -> new ArrayList<>()).add(share);
-
-            // Tạo PaymentRequest ở trạng thái PENDING nếu chưa có
             if (!paymentRequestRepository.existsBySharingMemberId(share.getId())) {
                 User creditor = share.getTransaction().getPayer();
                 String note = "Thanh toan " + share.getTransaction().getTitle() + " - Nhom " + group.getName();
@@ -80,71 +92,263 @@ public class ScheduledTaskService {
             }
         }
 
-        // Gửi email sao kê tổng hợp kèm danh sách hóa đơn và mã QR
-        for (Map.Entry<User, List<TransactionSharingMember>> entry : debtorSharesMap.entrySet()) {
+        // 2. Xác định mốc kỳ sao kê (StatementPeriod)
+        Optional<StatementPeriod> lastPeriodOpt = statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId());
+        LocalDateTime startDate = lastPeriodOpt.map(StatementPeriod::getEndDate)
+                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : todayDate.minusMonths(1).atTime(8, 30, 0));
+        LocalDateTime endDate = todayDate.atTime(LocalTime.of(8, 30, 0));
+        int periodNumber = lastPeriodOpt.map(p -> p.getPeriodNumber() + 1).orElse(1);
+
+        // 3. Lấy tất cả PaymentRequest còn nợ trong nhóm (PENDING và WAITING_APPROVE)
+        List<PaymentRequest> activeRequests = paymentRequestRepository.findByTransactionGroupIdAndStatusIn(
+                group.getId(),
+                List.of(PaymentRequestStatus.PENDING, PaymentRequestStatus.WAITING_APPROVE)
+        );
+
+        if (activeRequests.isEmpty()) {
+            log.info("Nhóm {} không có khoản nợ nào trong kỳ {}.", group.getName(), periodNumber);
+            return;
+        }
+
+        // 4. Tạo Snapshot JSON lưu trữ bất biến lịch sử kỳ sao kê
+        List<Map<String, Object>> snapshotItems = new ArrayList<>();
+        long totalPendingAmount = 0L;
+
+        for (PaymentRequest pr : activeRequests) {
+            if (pr.getStatus() == PaymentRequestStatus.PENDING) {
+                totalPendingAmount += pr.getAmount();
+            }
+            User creditor = pr.getCreditor();
+            PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("requestId", pr.getId().toString());
+            item.put("transactionTitle", pr.getTransaction().getTitle());
+            item.put("debtorId", pr.getDebtor().getId().toString());
+            item.put("debtorName", pr.getDebtor().getFullName());
+            item.put("creditorId", creditor.getId().toString());
+            item.put("creditorName", creditor.getFullName());
+            item.put("amount", pr.getAmount());
+            item.put("status", pr.getStatus().name());
+            item.put("bankCode", paymentInfo != null ? paymentInfo.getBankCode() : null);
+            item.put("bankName", paymentInfo != null ? paymentInfo.getBankName() : null);
+            item.put("accountNumber", paymentInfo != null ? paymentInfo.getAccountNumber() : null);
+            item.put("accountHolderName", paymentInfo != null ? paymentInfo.getAccountHolderName() : null);
+            item.put("description", PaymentDescriptionUtil.buildPaymentDescription(pr.getDebtor().getFullName()));
+            snapshotItems.add(item);
+        }
+
+        String snapshotJson;
+        try {
+            Map<String, Object> snapshotMap = new LinkedHashMap<>();
+            snapshotMap.put("groupId", group.getId().toString());
+            snapshotMap.put("groupName", group.getName());
+            snapshotMap.put("periodNumber", periodNumber);
+            snapshotMap.put("startDate", startDate.toString());
+            snapshotMap.put("endDate", endDate.toString());
+            snapshotMap.put("totalPendingAmount", totalPendingAmount);
+            snapshotMap.put("items", snapshotItems);
+            snapshotJson = objectMapper.writeValueAsString(snapshotMap);
+        } catch (Exception e) {
+            log.error("Lỗi serialize snapshot sao kê nhóm {}: {}", group.getId(), e.getMessage());
+            snapshotJson = "{}";
+        }
+
+        StatementPeriod period = StatementPeriod.builder()
+                .group(group)
+                .periodNumber(periodNumber)
+                .startDate(startDate)
+                .endDate(endDate)
+                .snapshotJson(snapshotJson)
+                .processedAt(LocalDateTime.now())
+                .status("PROCESSED")
+                .build();
+        statementPeriodRepository.save(period);
+        log.info("Đã tạo StatementPeriod kỳ {} cho nhóm {}", periodNumber, group.getName());
+
+        // 5. Gom nợ theo từng Debtor và gửi Email Outbox
+        Map<User, List<PaymentRequest>> debtorMap = new LinkedHashMap<>();
+        for (PaymentRequest pr : activeRequests) {
+            debtorMap.computeIfAbsent(pr.getDebtor(), k -> new ArrayList<>()).add(pr);
+        }
+
+        String periodTitle = "Kỳ " + periodNumber + " (" + startDate.format(DATE_FORMATTER) + " - " + endDate.format(DATE_FORMATTER) + ")";
+        String statementWebUrl = emailService.getDashboardUrl() + "/groups/" + group.getId() + "/statements";
+
+        for (Map.Entry<User, List<PaymentRequest>> entry : debtorMap.entrySet()) {
             User debtor = entry.getKey();
-            List<TransactionSharingMember> shares = entry.getValue();
+            List<PaymentRequest> requests = entry.getValue();
 
-            long totalDebt = shares.stream().mapToLong(TransactionSharingMember::getShareAmount).sum();
-            List<String> details = new ArrayList<>();
-            String qrUrl = null;
+            long totalPendingDebt = requests.stream()
+                    .filter(r -> r.getStatus() == PaymentRequestStatus.PENDING)
+                    .mapToLong(PaymentRequest::getAmount)
+                    .sum();
 
-            for (TransactionSharingMember s : shares) {
-                String line = s.getTransaction().getTitle() + ": " + String.format("%,d", s.getShareAmount()) + " VND (Người nhận: " + s.getTransaction().getPayer().getFullName() + ")";
-                details.add(line);
+            StringBuilder pendingRowsHtml = new StringBuilder();
+            StringBuilder waitingRowsHtml = new StringBuilder();
+            boolean hasWaiting = false;
 
-                // Lấy QR của chủ nợ đầu tiên
-                if (qrUrl == null) {
-                    User creditor = s.getTransaction().getPayer();
-                    qrUrl = paymentInfoRepository.findByUserId(creditor.getId())
-                            .map(info -> info.buildQrUrl(s.getShareAmount(), "Thanh toan " + s.getTransaction().getTitle()))
-                            .orElse(null);
+            for (PaymentRequest pr : requests) {
+                User creditor = pr.getCreditor();
+                PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
+                String cleanDesc = PaymentDescriptionUtil.buildPaymentDescription(debtor.getFullName());
+                String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
+
+                if (pr.getStatus() == PaymentRequestStatus.PENDING) {
+                    String qrImgHtml = "";
+                    String bankInfoText = "";
+
+                    if (paymentInfo != null) {
+                        String qrUrl = paymentInfo.buildQrUrl(pr.getAmount(), cleanDesc);
+                        qrImgHtml = "<div class=\"qr-container\"><img src=\"" + qrUrl + "\" alt=\"Mã VietQR\" class=\"qr-img\" /><div class=\"qr-desc\">STK: " + paymentInfo.getAccountNumber() + " (" + paymentInfo.getBankCode() + ") • " + paymentInfo.getAccountHolderName() + "<br/>Nội dung: <strong>" + cleanDesc + "</strong></div></div>";
+                    } else {
+                        bankInfoText = "<p style=\"font-size: 13px; color: #d97706; margin: 6px 0;\">Chủ nợ (" + creditor.getFullName() + ") chưa thiết lập STK ngân hàng. Vui lòng liên hệ trực tiếp.</p>";
+                    }
+
+                    pendingRowsHtml.append("<div class=\"item-card\">")
+                            .append("<div class=\"item-header\">")
+                            .append("<span class=\"item-title\">").append(EmailService.escape(pr.getTransaction().getTitle())).append("</span>")
+                            .append("<span class=\"item-amount\">").append(EmailService.money(pr.getAmount())).append(" VND</span>")
+                            .append("</div>")
+                            .append("<div class=\"item-creditor\">Người nhận: <strong>").append(EmailService.escape(creditor.getFullName())).append("</strong></div>")
+                            .append(bankInfoText)
+                            .append(qrImgHtml)
+                            .append("<div style=\"text-align: center; margin-top: 10px;\"><a href=\"").append(actionUrl).append("\" class=\"btn-action\" target=\"_blank\">Tôi đã chuyển tiền</a></div>")
+                            .append("</div>");
+
+                } else if (pr.getStatus() == PaymentRequestStatus.WAITING_APPROVE) {
+                    hasWaiting = true;
+                    waitingRowsHtml.append("<div class=\"waiting-card\">")
+                            .append("<strong>").append(EmailService.escape(pr.getTransaction().getTitle())).append("</strong>: ")
+                            .append(EmailService.money(pr.getAmount())).append(" VND (Người nhận: ").append(EmailService.escape(creditor.getFullName())).append(")<br/>")
+                            .append("<span style=\"font-size: 12px; color: #0284c7;\">⏳ Đang chờ chủ nợ xác nhận nhận tiền - Không cần chuyển lại</span>")
+                            .append("</div>");
                 }
             }
 
-            emailService.sendMonthlyStatementEmail(
-                    debtor.getEmail(),
+            String waitingSectionHtml = "";
+            if (hasWaiting) {
+                waitingSectionHtml = "<div class=\"section-title\">⏳ Các Khoản Đang Chờ Duyệt</div>"
+                        + "<p style=\"font-size: 13px; color: #64748b; margin-top: -4px;\">Các khoản này bạn đã xác nhận thanh toán. Vui lòng không chuyển lại:</p>"
+                        + waitingRowsHtml.toString();
+            }
+
+            String finalPendingHtml = pendingRowsHtml.length() > 0 ? pendingRowsHtml.toString() : "<p style=\"color: #64748b;\">Bạn không có khoản nợ nào cần chuyển tiền trong kỳ này.</p>";
+            String emailHtml = emailService.buildStatementHtml(
                     debtor.getFullName(),
                     group.getName(),
-                    totalDebt,
-                    details,
-                    qrUrl
+                    periodTitle,
+                    totalPendingDebt,
+                    finalPendingHtml,
+                    waitingSectionHtml,
+                    statementWebUrl
+            );
+
+            String businessKey = "STATEMENT:" + group.getId() + ":" + debtor.getId() + ":" + periodNumber;
+            String subject = "Sao kê chi tiêu nhóm " + group.getName() + " - " + periodTitle;
+
+            emailOutboxService.recordOutbox(
+                    EmailType.STATEMENT,
+                    debtor.getEmail(),
+                    debtor.getFullName(),
+                    subject,
+                    emailHtml,
+                    snapshotJson,
+                    businessKey,
+                    todayDate
             );
         }
     }
 
     /**
-     * Chạy vào 9:00 AM hàng ngày:
-     * Quét tất cả các PaymentRequest đang ở trạng thái PENDING và gửi email nhắc nhở thanh toán.
+     * Chạy vào 09:00 AM hàng ngày:
+     * 1. Gom toàn bộ khoản nợ PENDING của 1 người trên TẤT CẢ CÁC NHÓM vào duy nhất 01 email.
+     * 2. Mỗi khoản nợ hiển thị đúng mã VietQR riêng, số tiền riêng, tên hóa đơn, tên nhóm.
+     * 3. Lưu paymentRequestIds vào payloadJson để phục vụ Just-In-Time check khi gửi.
      */
     @Scheduled(cron = "0 0 9 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional(readOnly = true)
     public void sendDailyPendingReminders() {
-        log.info("Bắt đầu tiến trình 9h sáng nhắc nhở các yêu cầu thanh toán PENDING...");
+        LocalDate todayDate = LocalDate.now(businessClock);
+        log.info("Bắt đầu tiến trình 09:00 sáng nhắc nhở các yêu cầu thanh toán PENDING ngày {}...", todayDate);
 
         List<PaymentRequest> pendingRequests = paymentRequestRepository.findByStatus(PaymentRequestStatus.PENDING);
-        log.info("Tìm thấy {} yêu cầu thanh toán đang PENDING.", pendingRequests.size());
+        if (pendingRequests.isEmpty()) {
+            log.info("Không có yêu cầu thanh toán PENDING nào cần nhắc nợ.");
+            return;
+        }
 
+        // Gom toàn bộ nợ theo Debtor
+        Map<User, List<PaymentRequest>> debtorMap = new LinkedHashMap<>();
         for (PaymentRequest pr : pendingRequests) {
-            try {
-                User debtor = pr.getDebtor();
+            debtorMap.computeIfAbsent(pr.getDebtor(), k -> new ArrayList<>()).add(pr);
+        }
+
+        for (Map.Entry<User, List<PaymentRequest>> entry : debtorMap.entrySet()) {
+            User debtor = entry.getKey();
+            List<PaymentRequest> requests = entry.getValue();
+
+            long totalDebt = requests.stream().mapToLong(PaymentRequest::getAmount).sum();
+            StringBuilder debtRowsHtml = new StringBuilder();
+            List<String> requestIds = new ArrayList<>();
+
+            for (PaymentRequest pr : requests) {
+                requestIds.add(pr.getId().toString());
                 User creditor = pr.getCreditor();
+                String groupName = pr.getTransaction().getGroup().getName();
+                PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
+                String cleanDesc = PaymentDescriptionUtil.buildPaymentDescription(debtor.getFullName());
+                String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
 
-                String qrUrl = paymentInfoRepository.findByUserId(creditor.getId())
-                        .map(info -> info.buildQrUrl(pr.getAmount(), pr.getNote()))
-                        .orElse(null);
+                String qrImgHtml = "";
+                String bankInfoText = "";
 
-                emailService.sendPaymentReminderEmail(
-                        debtor.getEmail(),
-                        debtor.getFullName(),
-                        creditor.getFullName(),
-                        pr.getAmount(),
-                        pr.getNote(),
-                        qrUrl
-                );
-            } catch (Exception e) {
-                log.error("Lỗi khi gửi email nhắc nhở cho request {}: {}", pr.getId(), e.getMessage());
+                if (paymentInfo != null) {
+                    String qrUrl = paymentInfo.buildQrUrl(pr.getAmount(), cleanDesc);
+                    qrImgHtml = "<div class=\"qr-container\"><img src=\"" + qrUrl + "\" alt=\"Mã VietQR\" class=\"qr-img\" /><div class=\"qr-desc\">STK: " + paymentInfo.getAccountNumber() + " (" + paymentInfo.getBankCode() + ") • " + paymentInfo.getAccountHolderName() + "<br/>Nội dung: <strong>" + cleanDesc + "</strong></div></div>";
+                } else {
+                    bankInfoText = "<p style=\"font-size: 13px; color: #d97706; margin: 6px 0;\">Chủ nợ (" + creditor.getFullName() + ") chưa thiết lập STK ngân hàng.</p>";
+                }
+
+                debtRowsHtml.append("<div class=\"item-card\">")
+                        .append("<div class=\"item-header\">")
+                        .append("<span class=\"item-title\">").append(EmailService.escape(pr.getTransaction().getTitle())).append(" (Nhóm: ").append(EmailService.escape(groupName)).append(")</span>")
+                        .append("<span class=\"item-amount\">").append(EmailService.money(pr.getAmount())).append(" VND</span>")
+                        .append("</div>")
+                        .append("<div class=\"item-creditor\">Người nhận: <strong>").append(EmailService.escape(creditor.getFullName())).append("</strong></div>")
+                        .append(bankInfoText)
+                        .append(qrImgHtml)
+                        .append("<div style=\"text-align: center; margin-top: 10px;\"><a href=\"").append(actionUrl).append("\" class=\"btn-action\" target=\"_blank\">Tôi đã chuyển tiền</a></div>")
+                        .append("</div>");
             }
+
+            String emailHtml = emailService.buildDebtReminderHtml(
+                    debtor.getFullName(),
+                    totalDebt,
+                    requests.size(),
+                    debtRowsHtml.toString()
+            );
+
+            String payloadJson;
+            try {
+                payloadJson = objectMapper.writeValueAsString(Map.of("paymentRequestIds", requestIds));
+            } catch (Exception e) {
+                payloadJson = "{}";
+            }
+
+            String businessKey = "DEBT_REMINDER:" + debtor.getId() + ":" + todayDate;
+            String subject = "Nhắc nhở: Bạn có " + requests.size() + " khoản nợ cần thanh toán - ChiaTiền";
+
+            emailOutboxService.recordOutbox(
+                    EmailType.DEBT_REMINDER,
+                    debtor.getEmail(),
+                    debtor.getFullName(),
+                    subject,
+                    emailHtml,
+                    payloadJson,
+                    businessKey,
+                    todayDate
+            );
         }
     }
 

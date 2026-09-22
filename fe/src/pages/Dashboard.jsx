@@ -339,8 +339,20 @@ export default function Dashboard() {
     }
   };
 
-  // Màn hình khi chưa đăng nhập: hiển thị trực tiếp form đăng nhập/đăng ký/quên mật khẩu ở giữa trang, bên trên là header
-  if (!user && !isLoading) {
+  // 1. Màn hình loading khi đang xác thực phiên đăng nhập
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-500 font-medium">Đang kiểm tra phiên đăng nhập...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Màn hình khi chưa đăng nhập: hiển thị trực tiếp form đăng nhập/đăng ký/quên mật khẩu ở giữa trang
+  if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <Navbar

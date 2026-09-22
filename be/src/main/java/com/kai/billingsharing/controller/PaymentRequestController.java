@@ -29,6 +29,15 @@ public class PaymentRequestController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<PaymentRequestResponse> getPaymentRequestDetail(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        PaymentRequestResponse response = paymentRequestService.getPaymentRequestDetail(id, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}/qr")
     public ResponseEntity<PaymentQrResponse> getPaymentQr(
             @PathVariable UUID id,

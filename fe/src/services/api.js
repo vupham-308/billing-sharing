@@ -80,10 +80,24 @@ export const paymentRequestApi = {
   getMyDebts: () => api.get("/payment-requests", { params: { type: "DEBT" } }).then((res) => res.data),
   getMyCredits: () => api.get("/payment-requests", { params: { type: "CREDIT" } }).then((res) => res.data),
   getPaymentRequests: (params) => api.get("/payment-requests", { params }).then((res) => res.data),
+  getDetail: (id) => api.get(`/payment-requests/${id}`).then((res) => res.data),
   confirmPaid: (id) => api.post(`/payment-requests/${id}/confirm-payment`).then((res) => res.data),
   approve: (id) => api.post(`/payment-requests/${id}/approve`).then((res) => res.data),
   reject: (id) => api.post(`/payment-requests/${id}/reject`).then((res) => res.data),
   getQr: (id) => api.get(`/payment-requests/${id}/qr`).then((res) => res.data),
+};
+
+export const statementApi = {
+  getGroupStatements: (groupId) => api.get(`/groups/${groupId}/statements`).then((res) => res.data),
+  getStatementDetail: (groupId, periodId) =>
+    api.get(`/groups/${groupId}/statements/${periodId}`).then((res) => res.data),
+};
+
+export const adminOutboxApi = {
+  getOutboxList: (params) => api.get("/admin/outbox", { params }).then((res) => res.data),
+  getOutboxDetail: (id) => api.get(`/admin/outbox/${id}`).then((res) => res.data),
+  retryOutbox: (id) => api.post(`/admin/outbox/${id}/retry`).then((res) => res.data),
+  cancelOutbox: (id) => api.post(`/admin/outbox/${id}/cancel`).then((res) => res.data),
 };
 
 export const paymentInfoApi = {
