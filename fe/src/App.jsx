@@ -10,6 +10,8 @@ import GroupStatementDetail from "./pages/GroupStatementDetail";
 import AdminOutbox from "./pages/AdminOutbox";
 import SepayGuide from "./pages/SepayGuide";
 
+import ProtectedRoute from "./components/ProtectedRoute";
+
 export default function App() {
   return (
     <AuthProvider>
@@ -27,23 +29,69 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/billing-sharing/reset-password" element={<ResetPassword />} />
 
-          {/* Chi tiết yêu cầu thanh toán (từ deep link trong email) */}
-          <Route path="/payment-requests/:id" element={<PaymentRequestDetail />} />
-          <Route path="/billing-sharing/payment-requests/:id" element={<PaymentRequestDetail />} />
+          {/* Chi tiết yêu cầu thanh toán (yêu cầu đăng nhập) */}
+          <Route
+            path="/payment-requests/:id"
+            element={
+              <ProtectedRoute>
+                <PaymentRequestDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/billing-sharing/payment-requests/:id"
+            element={
+              <ProtectedRoute>
+                <PaymentRequestDetail />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Lịch sử sao kê nhóm */}
-          <Route path="/groups/:groupId/statements" element={<GroupStatementDetail />} />
-          <Route path="/billing-sharing/groups/:groupId/statements" element={<GroupStatementDetail />} />
+          {/* Lịch sử sao kê nhóm (yêu cầu đăng nhập) */}
+          <Route
+            path="/groups/:groupId/statements"
+            element={
+              <ProtectedRoute>
+                <GroupStatementDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/billing-sharing/groups/:groupId/statements"
+            element={
+              <ProtectedRoute>
+                <GroupStatementDetail />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Trang quản trị Email Outbox (viết chung trong fe) */}
-          <Route path="/admin/outbox" element={<AdminOutbox />} />
-          <Route path="/billing-sharing/admin/outbox" element={<AdminOutbox />} />
+          {/* Trang quản trị Email Outbox (yêu cầu quyền ADMIN) */}
+          <Route
+            path="/admin/outbox"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminOutbox />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/billing-sharing/admin/outbox"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminOutbox />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Trang hướng dẫn thiết lập SePay Webhook */}
           <Route path="/guides/sepay-setup" element={<SepayGuide />} />
           <Route path="/billing-sharing/guides/sepay-setup" element={<SepayGuide />} />
 
-          {/* Trang chủ mặc định là /billing-sharing */}
+          {/* Đường dẫn đăng nhập trực tiếp trỏ về /billing-sharing */}
+          <Route path="/login" element={<Navigate to="/billing-sharing" replace />} />
+          <Route path="/billing-sharing/login" element={<Navigate to="/billing-sharing" replace />} />
+
+          {/* Trang chủ mặc định là /billing-sharing (tự động render form Login nếu chưa xác thực) */}
           <Route path="/billing-sharing" element={<Dashboard />} />
 
           {/* Fallback tất cả đường dẫn / và các đường dẫn khác về /billing-sharing */}

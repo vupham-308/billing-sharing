@@ -39,6 +39,22 @@ api.interceptors.response.use(
       cookieUtils.remove("token");
       localStorage.removeItem("token");
       window.dispatchEvent(new Event("auth:unauthorized"));
+
+      // Nếu đang ở trang yêu cầu xác thực, chủ động quay về trang đăng nhập /billing-sharing
+      if (typeof window !== "undefined" && window.location) {
+        const path = window.location.pathname || "";
+        const isPublic =
+          path === "/" ||
+          path === "/billing-sharing" ||
+          path.includes("/login") ||
+          path.includes("/callback") ||
+          path.includes("/verify-email") ||
+          path.includes("/reset-password") ||
+          path.includes("/guides/");
+        if (!isPublic) {
+          window.location.replace("/billing-sharing");
+        }
+      }
     }
     return Promise.reject(error);
   }

@@ -45,8 +45,12 @@ export function AuthProvider({ children }) {
     loadUser();
 
     const handleUnauthorized = () => {
+      cookieUtils.remove("token");
+      localStorage.removeItem("token");
+      hydratedToken.current = null;
       setToken(null);
       setUser(null);
+      setIsLoading(false);
     };
 
     window.addEventListener("auth:unauthorized", handleUnauthorized);

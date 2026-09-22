@@ -247,8 +247,10 @@ export default function Dashboard() {
         setSelectedGroupId(formData.groupId);
       }
       setTransactionRevision((value) => value + 1);
-      // Tải lại công nợ & số dư
-      await Promise.all([loadDashboardData(), refreshUser()]);
+      // Tải lại công nợ & số dư ngầm mà không làm treo modal
+      Promise.all([loadDashboardData(), refreshUser()]).catch((err) => {
+        console.warn("Lỗi tải lại dữ liệu nền:", err);
+      });
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Tạo hóa đơn thất bại";
       showToast(msg);
