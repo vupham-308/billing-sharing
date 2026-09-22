@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kai.billingsharing.entity.*;
 import com.kai.billingsharing.entity.enums.EmailType;
 import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
+import com.kai.billingsharing.dto.response.ManualSettlementResponse;
+import com.kai.billingsharing.exception.AppException;
+import com.kai.billingsharing.security.CustomUserDetails;
 import com.kai.billingsharing.repository.*;
 import com.kai.billingsharing.util.PaymentDescriptionUtil;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +64,7 @@ public class ScheduledTaskService {
 
         for (Group group : groups) {
             try {
-                processSummaryForGroup(group, todayDate);
+                processSummaryForGroup(group, todayDate.atTime(8, 30));
             } catch (Exception e) {
                 log.error("Lỗi khi tổng hợp sao kê cho nhóm {}: {}", group.getName(), e.getMessage(), e);
             }
@@ -69,7 +72,27 @@ public class ScheduledTaskService {
     }
 
     @Transactional
-    public void processSummaryForGroup(Group group, LocalDate todayDate) {
+    public ManualSettlementResponse settleGroupEarly(UUID groupId, CustomUserDetails currentUser) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new AppException("Nhóm không tồn tại", org.springframework.http.HttpStatus.NOT_FOUND));
+        if (group.getCreatedBy() == null || !group.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new AppException("Chỉ trưởng nhóm mới có quyền tất toán trước hạn", org.springframework.http.HttpStatus.FORBIDDEN);
+        }
+
+        LocalDateTime now = LocalDateTime.now(businessClock);
+        statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(groupId)
+                .filter(period -> period.getEndDate() != null
+                        && period.getEndDate().toLocalDate().equals(now.toLocalDate()))
+                .ifPresent(period -> {
+                    throw new AppException("Nhóm đã được tất toán trong ngày hôm nay", org.springframework.http.HttpStatus.CONFLICT);
+                });
+        return processSummaryForGroup(group, now);
+    }
+
+    @Transactional
+    public ManualSettlementResponse processSummaryForGroup(Group group, LocalDateTime endDate) {
+        int createdPaymentRequests = 0;
+        int existingPaymentRequests = 0;
         // 1. Đồng bộ các khoản chi tiêu chưa thanh toán thành PaymentRequest PENDING (nếu chưa tạo)
         List<TransactionSharingMember> unpaidShares = sharingMemberRepository
                 .findByTransactionGroupIdAndIsPaidFalse(group.getId());
@@ -94,14 +117,16 @@ public class ScheduledTaskService {
                         .build();
 
                 paymentRequestRepository.save(pr);
+                createdPaymentRequests++;
+            } else {
+                existingPaymentRequests++;
             }
         }
 
         // 2. Xác định mốc kỳ sao kê (StatementPeriod)
         Optional<StatementPeriod> lastPeriodOpt = statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId());
         LocalDateTime startDate = lastPeriodOpt.map(StatementPeriod::getEndDate)
-                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : todayDate.minusMonths(1).atTime(8, 30, 0));
-        LocalDateTime endDate = todayDate.atTime(LocalTime.of(8, 30, 0));
+                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : endDate.minusMonths(1).with(LocalTime.of(8, 30, 0)));
         int periodNumber = lastPeriodOpt.map(p -> p.getPeriodNumber() + 1).orElse(1);
 
         // 3. Lấy tất cả PaymentRequest còn nợ trong nhóm (PENDING và WAITING_APPROVE)
@@ -112,7 +137,15 @@ public class ScheduledTaskService {
 
         if (activeRequests.isEmpty()) {
             log.info("Nhóm {} không có khoản nợ nào trong kỳ {}.", group.getName(), periodNumber);
-            return;
+            return ManualSettlementResponse.builder()
+                    .groupId(group.getId())
+                    .groupName(group.getName())
+                    .paymentRequestsCreated(createdPaymentRequests)
+                    .paymentRequestsExisting(existingPaymentRequests)
+                    .pendingRequests(0)
+                    .waitingApproveRequests(0)
+                    .statementQueued(false)
+                    .build();
         }
 
         // 4. Tạo Snapshot JSON lưu trữ bất biến lịch sử kỳ sao kê
@@ -274,9 +307,21 @@ public class ScheduledTaskService {
                     emailHtml,
                     snapshotJson,
                     businessKey,
-                    todayDate
+                    endDate.toLocalDate()
             );
         }
+
+        long pendingCount = activeRequests.stream().filter(r -> r.getStatus() == PaymentRequestStatus.PENDING).count();
+        long waitingCount = activeRequests.stream().filter(r -> r.getStatus() == PaymentRequestStatus.WAITING_APPROVE).count();
+        return ManualSettlementResponse.builder()
+                .groupId(group.getId())
+                .groupName(group.getName())
+                .paymentRequestsCreated(createdPaymentRequests)
+                .paymentRequestsExisting(existingPaymentRequests)
+                .pendingRequests((int) pendingCount)
+                .waitingApproveRequests((int) waitingCount)
+                .statementQueued(true)
+                .build();
     }
 
     /**

@@ -1,5 +1,5 @@
 import React from "react";
-import { Users, Calendar, Plus, FolderKanban } from "lucide-react";
+import { Users, Calendar, Plus, FolderKanban, CheckCircle2 } from "lucide-react";
 import { formatVND } from "../utils/formatters";
 
 export default function GroupList({
@@ -10,6 +10,8 @@ export default function GroupList({
   onOpenCreateModal,
   currentUser,
   onAddMember,
+  onSettleEarly,
+  settlingGroupId,
 }) {
   const handleOpenCreate = onOpenCreateGroup || onOpenCreateModal;
 
@@ -124,6 +126,20 @@ export default function GroupList({
                 <button type="button" className="mt-3 text-xs font-semibold text-indigo-600 hover:underline"
                   onClick={(event) => { event.stopPropagation(); onAddMember(group); }}>
                   + Thêm thành viên bằng email
+                </button>
+              )}
+              {onSettleEarly && group.createdById === currentUser?.id && (
+                <button
+                  type="button"
+                  disabled={settlingGroupId === group.id}
+                  className="mt-3 ml-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSettleEarly(group);
+                  }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {settlingGroupId === group.id ? "Đang tất toán..." : "Tất toán trước hạn"}
                 </button>
               )}
             </div>

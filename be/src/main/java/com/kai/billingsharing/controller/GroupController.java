@@ -5,8 +5,10 @@ import com.kai.billingsharing.dto.request.CreateGroupRequest;
 import com.kai.billingsharing.dto.response.GroupDetailResponse;
 import com.kai.billingsharing.dto.response.GroupMemberResponse;
 import com.kai.billingsharing.dto.response.GroupResponse;
+import com.kai.billingsharing.dto.response.ManualSettlementResponse;
 import com.kai.billingsharing.security.CustomUserDetails;
 import com.kai.billingsharing.service.GroupService;
+import com.kai.billingsharing.service.ScheduledTaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class GroupController {
 
     private final GroupService groupService;
+    private final ScheduledTaskService scheduledTaskService;
 
     @PostMapping
     public ResponseEntity<GroupResponse> createGroup(
@@ -67,5 +70,13 @@ public class GroupController {
     ) {
         GroupDetailResponse response = groupService.getGroupDetail(groupId, currentUser);
         return ResponseEntity.ok(response.getMembers());
+    }
+
+    @PostMapping("/{groupId}/settle-early")
+    public ResponseEntity<ManualSettlementResponse> settleEarly(
+            @PathVariable UUID groupId,
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        return ResponseEntity.ok(scheduledTaskService.settleGroupEarly(groupId, currentUser));
     }
 }

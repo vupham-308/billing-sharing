@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [transactionError, setTransactionError] = useState("");
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [memberGroup, setMemberGroup] = useState(null);
+  const [settlingGroupId, setSettlingGroupId] = useState(null);
 
   // State
   const [groups, setGroups] = useState([]);
@@ -273,6 +274,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleSettleEarly = async (group) => {
+    const confirmed = window.confirm(
+      `Tất toán trước hạn nhóm "${group.name}"? Hệ thống sẽ tạo sao kê và đưa email vào hàng đợi gửi ngay.`
+    );
+    if (!confirmed) return;
+
+    setSettlingGroupId(group.id);
+    try {
+      const result = await groupApi.settleEarly(group.id);
+      const created = result?.paymentRequestsCreated ?? 0;
+      showToast(
+        result?.statementQueued
+          ? `Đã tất toán nhóm "${group.name}" và xếp email sao kê vào hàng đợi (${created} khoản mới).`
+          : `Nhóm "${group.name}" không có khoản nợ cần tất toán.`
+      );
+      await Promise.all([loadDashboardData(), refreshUser()]);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Không thể tất toán nhóm trước hạn.");
+    } finally {
+      setSettlingGroupId(null);
+    }
+  };
+
   // Handlers: Quét VietQR
   const handleOpenQrModal = async (debtItem) => {
     try {
@@ -432,6 +456,8 @@ export default function Dashboard() {
               onOpenCreateModal={() => setIsGroupModalOpen(true)}
               currentUser={user}
               onAddMember={setMemberGroup}
+              onSettleEarly={handleSettleEarly}
+              settlingGroupId={settlingGroupId}
             />
 
             {transactionsLoading && <p role="status" className="text-sm text-slate-500">Đang tải hóa đơn...</p>}

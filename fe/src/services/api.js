@@ -66,6 +66,8 @@ export const groupApi = {
   getMembers: (groupId) => read(`/groups/${groupId}/members`),
   addMember: (groupId, memberData) =>
     api.post(`/groups/${groupId}/members`, memberData).then((res) => res.data),
+  settleEarly: (groupId) =>
+    api.post(`/groups/${groupId}/settle-early`).then((res) => res.data),
   getGroupTransactions: (groupId, params) =>
     read(`/groups/${groupId}/transactions`, { params }),
 };
