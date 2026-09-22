@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { authApi, paymentInfoApi } from "../services/api";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import { authApi } from "../services/api";
 import { cookieUtils } from "../utils/cookie";
 
 const AuthContext = createContext(null);
@@ -8,28 +8,37 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => cookieUtils.get("token") || localStorage.getItem("token"));
   const [isLoading, setIsLoading] = useState(true);
+  const hydratedToken = useRef(null);
 
   useEffect(() => {
+    let active = true;
     async function loadUser() {
       if (!token) {
         setUser(null);
         setIsLoading(false);
         return;
       }
+      if (hydratedToken.current === token) {
+        setIsLoading(false);
+        return;
+      }
       try {
         const userData = await authApi.getMe();
+        if (!active) return;
         if (userData) {
           userData.name = userData.fullName || userData.name;
         }
         setUser(userData);
+        hydratedToken.current = token;
       } catch (err) {
+        if (!active) return;
         console.warn("Failed to load user with token, clearing session", err);
         cookieUtils.remove("token");
         localStorage.removeItem("token");
         setToken(null);
         setUser(null);
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     }
 
@@ -41,13 +50,17 @@ export function AuthProvider({ children }) {
     };
 
     window.addEventListener("auth:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+    return () => {
+      active = false;
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+    };
   }, [token]);
 
   const login = async (email, password) => {
     try {
       const res = await authApi.login({ email, password });
       const authToken = res.accessToken || res.token;
+      hydratedToken.current = res.user ? authToken : null;
       cookieUtils.set("token", authToken, 30);
       localStorage.removeItem("token");
       setToken(authToken);
@@ -95,6 +108,7 @@ export function AuthProvider({ children }) {
       loggedUser.name = loggedUser.fullName || loggedUser.name;
 
       if (authToken) {
+        hydratedToken.current = res.user ? authToken : null;
         cookieUtils.set("token", authToken, 30);
         localStorage.removeItem("token");
         setToken(authToken);
@@ -117,7 +131,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithGoogle = async (googleParam) => {
+  const loginWithGoogle = useCallback(async (googleParam) => {
     try {
       const payload = typeof googleParam === "string" ? { idToken: googleParam } : googleParam;
       const res = await authApi.loginGoogle(payload);
@@ -134,6 +148,7 @@ export function AuthProvider({ children }) {
       }
 
       const authToken = res.accessToken || res.token;
+      hydratedToken.current = res.user ? authToken : null;
       cookieUtils.set("token", authToken, 30);
       localStorage.removeItem("token");
       setToken(authToken);
@@ -149,9 +164,10 @@ export function AuthProvider({ children }) {
         message: err.response?.data?.message || "Đăng nhập Google thất bại. Vui lòng thử lại.",
       };
     }
-  };
+  }, []);
 
   const logout = () => {
+    hydratedToken.current = null;
     cookieUtils.remove("token");
     localStorage.removeItem("token");
     setToken(null);

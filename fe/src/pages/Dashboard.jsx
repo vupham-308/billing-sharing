@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import HeroBalance from "../components/HeroBalance";
 import GroupList from "../components/GroupList";
@@ -12,6 +13,7 @@ import CreateGroupModal from "../components/modals/CreateGroupModal";
 import VietQrModal from "../components/modals/VietQrModal";
 import PaymentInfoModal from "../components/modals/PaymentInfoModal";
 import AuthCard from "../components/auth/AuthCard";
+import AddGroupMemberModal from "../components/modals/AddGroupMemberModal";
 
 import { useAuth } from "../context/AuthContext";
 import {
@@ -20,10 +22,15 @@ import {
   paymentRequestApi,
   paymentInfoApi,
 } from "../services/api";
-import { ShieldAlert, Receipt, LogIn } from "lucide-react";
 
 export default function Dashboard() {
   const { user, isLoading, refreshUser } = useAuth();
+  const userId = user?.id;
+  const dashboardRequest = useRef(0);
+  const [transactionRevision, setTransactionRevision] = useState(0);
+  const [transactionError, setTransactionError] = useState("");
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [memberGroup, setMemberGroup] = useState(null);
 
   // State
   const [groups, setGroups] = useState([]);
@@ -32,11 +39,8 @@ export default function Dashboard() {
   const [debts, setDebts] = useState([]);
   const [credits, setCredits] = useState([]);
   const [paymentInfo, setPaymentInfo] = useState(null);
-  const [isForceBankSetup, setIsForceBankSetup] = useState(false);
 
   // Pagination & filter
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [dateFilter, setDateFilter] = useState("ALL");
 
   // Modals state
@@ -45,6 +49,16 @@ export default function Dashboard() {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [selectedQrData, setSelectedQrData] = useState(null);
   const [isPaymentInfoModalOpen, setIsPaymentInfoModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Tự động mở modal tài khoản nhận tiền khi có query param ?action=edit-payment
+  useEffect(() => {
+    if (searchParams.get("action") === "edit-payment") {
+      setIsPaymentInfoModalOpen(true);
+      searchParams.delete("action");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Notification toast
   const [toastMessage, setToastMessage] = useState("");
@@ -73,30 +87,49 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Tải danh sách giao dịch theo nhóm
-  const loadGroupTransactions = useCallback(
-    async (groupId, targetPage = 0) => {
-      if (!groupId) return;
+  // Only group IDs affect the transaction scope, not balance/member updates.
+  const groupIdsKey = JSON.stringify(groups.map((group) => group.id).sort());
+  useEffect(() => {
+    let active = true;
+    const ids = selectedGroupId ? [selectedGroupId] : JSON.parse(groupIdsKey);
+    setTransactions([]);
+    setTransactionError("");
+    if (!userId || ids.length === 0) {
+      setTransactionsLoading(false);
+      return;
+    }
+    setTransactionsLoading(true);
+    async function load() {
       try {
-        const res = await groupApi.getGroupTransactions(groupId, {
-          page: targetPage,
-          size: 20,
-          sort: "createdAt,desc",
-        });
-        const items = (res.content || []).map((t) => normalizeTransaction(t, user?.id));
-        setTransactions(items);
-        setTotalPages(res.totalPages || 1);
-        setPage(res.number || 0);
+        // RecentTransactions filters and paginates locally, so load all pages.
+        const results = await Promise.all(ids.map(async (id) => {
+          const items = [];
+          let page = 0;
+          let totalPages = 1;
+          do {
+            if (!active) return [];
+            const result = await groupApi.getGroupTransactions(id, { page, size: 100, sort: "createdAt,desc" });
+            items.push(...(result.content || []).map((tx) => normalizeTransaction({ ...tx, groupId: tx.groupId || id }, userId)));
+            totalPages = result.totalPages || 1;
+            page++;
+          } while (page < totalPages);
+          return items;
+        }));
+        if (active) setTransactions(results.flat().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } catch (err) {
-        console.error("Lỗi khi tải giao dịch nhóm:", err);
+        if (active) setTransactionError(err.response?.data?.message || "Không thể tải hóa đơn. Vui lòng thử lại.");
+      } finally {
+        if (active) setTransactionsLoading(false);
       }
-    },
-    [user?.id, normalizeTransaction]
-  );
+    }
+    load();
+    return () => { active = false; };
+  }, [userId, selectedGroupId, groupIdsKey, transactionRevision, normalizeTransaction]);
 
   // Tải toàn bộ dữ liệu Dashboard khi đăng nhập
   const loadDashboardData = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
+    const requestId = ++dashboardRequest.current;
 
     try {
       const [groupsData, debtsData, creditsData, infoData] = await Promise.allSettled([
@@ -105,6 +138,7 @@ export default function Dashboard() {
         paymentRequestApi.getMyCredits(),
         paymentInfoApi.getMyInfo(),
       ]);
+      if (requestId !== dashboardRequest.current) return;
 
       // Xử lý thông tin tài khoản ngân hàng
       if (infoData.status === "fulfilled" && infoData.value && infoData.value.accountNumber) {
@@ -112,8 +146,6 @@ export default function Dashboard() {
       } else {
         setPaymentInfo(null);
       }
-      setIsForceBankSetup(false);
-      setIsPaymentInfoModalOpen(false);
 
       // Xử lý danh sách nhóm
       let loadedGroups = [];
@@ -142,29 +174,28 @@ export default function Dashboard() {
         setCredits(normalizedCredits);
       }
 
-      // Tải giao dịch của nhóm đầu tiên nếu có
-      if (loadedGroups.length > 0) {
-        const targetId = selectedGroupId || loadedGroups[0].id;
-        setSelectedGroupId(targetId);
-        loadGroupTransactions(targetId, 0);
-      }
     } catch (err) {
       console.error("Lỗi khi tải dữ liệu Dashboard:", err);
     }
-  }, [user, selectedGroupId, loadGroupTransactions]);
+  }, [userId]);
 
   useEffect(() => {
-    if (user) {
+    if (userId) {
       loadDashboardData();
+    } else {
+      setGroups([]);
+      setDebts([]);
+      setCredits([]);
+      setPaymentInfo(null);
+      setSelectedGroupId(null);
+      setMemberGroup(null);
     }
-  }, [user, loadDashboardData]);
+    return () => { dashboardRequest.current++; };
+  }, [userId, loadDashboardData]);
 
   // Xử lý chuyển đổi nhóm chi tiêu
   const handleSelectGroup = (groupId) => {
     setSelectedGroupId(groupId);
-    if (groupId) {
-      loadGroupTransactions(groupId, 0);
-    }
   };
 
   // Filter transactions theo ngày ở UI
@@ -213,12 +244,10 @@ export default function Dashboard() {
       // Tải lại giao dịch nhóm
       if (formData.groupId) {
         setSelectedGroupId(formData.groupId);
-        loadGroupTransactions(formData.groupId, 0);
       }
+      setTransactionRevision((value) => value + 1);
       // Tải lại công nợ & số dư
-      paymentRequestApi.getMyDebts().then((d) => setDebts(d || []));
-      paymentRequestApi.getMyCredits().then((c) => setCredits(c || []));
-      refreshUser();
+      await Promise.all([loadDashboardData(), refreshUser()]);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Tạo hóa đơn thất bại";
       showToast(msg);
@@ -235,9 +264,8 @@ export default function Dashboard() {
       });
       showToast(`Đã tạo nhóm "${res.name}" thành công!`);
       const updatedGroups = await groupApi.getGroups();
-      setGroups(updatedGroups || []);
+      setGroups((updatedGroups || []).map((group) => ({ ...group, myBalance: group.myBalanceInGroup ?? 0 })));
       setSelectedGroupId(res.id);
-      loadGroupTransactions(res.id, 0);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Tạo nhóm thất bại";
       showToast(msg);
@@ -330,7 +358,6 @@ export default function Dashboard() {
     try {
       const res = await paymentInfoApi.saveMyInfo(infoData);
       setPaymentInfo(res);
-      setIsForceBankSetup(false);
       showToast("Đã lưu thông tin tài khoản ngân hàng thành công!");
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Không thể lưu thông tin ngân hàng.";
@@ -403,16 +430,18 @@ export default function Dashboard() {
               onSelectGroup={handleSelectGroup}
               onOpenCreateGroup={() => setIsGroupModalOpen(true)}
               onOpenCreateModal={() => setIsGroupModalOpen(true)}
+              currentUser={user}
+              onAddMember={setMemberGroup}
             />
 
+            {transactionsLoading && <p role="status" className="text-sm text-slate-500">Đang tải hóa đơn...</p>}
+            {transactionError && <div role="alert" className="text-sm text-rose-600">{transactionError} <button type="button" onClick={() => setTransactionRevision((value) => value + 1)} className="underline">Thử lại</button></div>}
             <RecentTransactions
+              key={selectedGroupId || "all-groups"}
               transactions={filteredTransactions}
               currentUserId={user?.id}
               dateFilter={dateFilter}
-              onChangeDateFilter={setDateFilter}
-              page={page}
-              totalPages={totalPages}
-              onPageChange={(p) => loadGroupTransactions(selectedGroupId, p)}
+              onDateFilterChange={setDateFilter}
             />
           </div>
 
@@ -436,6 +465,14 @@ export default function Dashboard() {
       </main>
 
       {/* Modals */}
+      {memberGroup && <AddGroupMemberModal
+        key={memberGroup.id}
+        group={memberGroup}
+        onClose={() => setMemberGroup(null)}
+        onMembersChanged={(groupId, members) => {
+          setGroups((previous) => previous.map((group) => group.id === groupId ? { ...group, members, memberCount: members.length } : group));
+        }}
+      />}
       <CreateTransactionModal
         isOpen={isTxModalOpen}
         onClose={() => setIsTxModalOpen(false)}

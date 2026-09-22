@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CreditCard, QrCode, Copy, Check, Edit3, ShieldCheck } from "lucide-react";
+import { CreditCard, QrCode, Copy, Check, Edit3, ShieldCheck, ExternalLink } from "lucide-react";
 
 export default function PaymentInfoCard({ paymentInfo, onOpenEditModal, onPreviewPersonalQr }) {
   const [copied, setCopied] = useState(false);
@@ -103,6 +103,19 @@ export default function PaymentInfoCard({ paymentInfo, onOpenEditModal, onPrevie
           </button>
         </div>
       )}
+
+      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+        <span className="text-slate-500">Tự động duyệt tiền vào?</span>
+        <a
+          href="/billing-sharing/guides/sepay-setup"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+        >
+          <span>Hướng dẫn thiết lập SePay</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
     </section>
   );
 }

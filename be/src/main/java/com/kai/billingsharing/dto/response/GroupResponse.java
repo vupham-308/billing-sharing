@@ -21,5 +21,6 @@ public class GroupResponse {
     private UUID createdById;
     private String createdByName;
     private Long myBalanceInGroup;
+    private long memberCount;
     private LocalDateTime createdAt;
 }

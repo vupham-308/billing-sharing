@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { bankApi } from "../../services/api";
 import BankSelect from "../common/BankSelect";
 
@@ -217,6 +217,17 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
             <p className="text-[11px] text-slate-500 mt-1.5">
               Cấu hình API Key SePay để hệ thống tự động hoàn tất khoản nợ ngay khi bạn nhận được chuyển khoản. Nếu bỏ trống, bạn vẫn duyệt thủ công bình thường.
             </p>
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              <a
+                href="/billing-sharing/guides/sepay-setup"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              >
+                <span>📖 Xem hướng dẫn kết nối SePay từng bước (có hình ảnh)</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">

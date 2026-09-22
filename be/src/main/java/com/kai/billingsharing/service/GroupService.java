@@ -75,6 +75,7 @@ public class GroupService {
                 .createdById(creator.getId())
                 .createdByName(creator.getFullName())
                 .myBalanceInGroup(0L)
+                .memberCount(1L)
                 .createdAt(savedGroup.getCreatedAt())
                 .build();
     }
@@ -130,6 +131,7 @@ public class GroupService {
                     .createdById(group.getCreatedBy().getId())
                     .createdByName(group.getCreatedBy().getFullName())
                     .myBalanceInGroup(membership.getBalance())
+                    .memberCount(groupMemberRepository.countByGroupId(group.getId()))
                     .createdAt(group.getCreatedAt())
                     .build();
         }).collect(Collectors.toList());

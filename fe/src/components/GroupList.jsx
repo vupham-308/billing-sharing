@@ -1,5 +1,5 @@
 import React from "react";
-import { Users, Calendar, ArrowRight, Plus, FolderKanban } from "lucide-react";
+import { Users, Calendar, Plus, FolderKanban } from "lucide-react";
 import { formatVND } from "../utils/formatters";
 
 export default function GroupList({
@@ -8,6 +8,8 @@ export default function GroupList({
   onSelectGroup,
   onOpenCreateGroup,
   onOpenCreateModal,
+  currentUser,
+  onAddMember,
 }) {
   const handleOpenCreate = onOpenCreateGroup || onOpenCreateModal;
 
@@ -100,7 +102,7 @@ export default function GroupList({
               <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                 <div className="text-slate-500 flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" />
-                  <span>{group.memberCount || group.members?.length || 1} thành viên</span>
+                  <span>{group.memberCount ?? group.members?.length ?? "—"} thành viên</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] text-slate-400 block">Số dư trong nhóm</span>
@@ -118,6 +120,12 @@ export default function GroupList({
                   </span>
                 </div>
               </div>
+              {onAddMember && (currentUser?.role === "ADMIN" || group.createdById === currentUser?.id) && (
+                <button type="button" className="mt-3 text-xs font-semibold text-indigo-600 hover:underline"
+                  onClick={(event) => { event.stopPropagation(); onAddMember(group); }}>
+                  + Thêm thành viên bằng email
+                </button>
+              )}
             </div>
           );
         })}

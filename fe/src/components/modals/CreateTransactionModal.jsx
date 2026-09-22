@@ -15,13 +15,13 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (groups.length > 0 && !groupId) {
+    if (isOpen && groups.length > 0 && !groupId) {
       setGroupId(groups[0].id);
     }
-  }, [groups, groupId]);
+  }, [isOpen, groups, groupId]);
 
   useEffect(() => {
-    if (!groupId) return;
+    if (!isOpen || !groupId) return;
     let isCancelled = false;
 
     async function fetchMembers() {
@@ -56,7 +56,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
     return () => {
       isCancelled = true;
     };
-  }, [groupId, groups]);
+  }, [isOpen, groupId, groups]);
 
   if (!isOpen) return null;
 

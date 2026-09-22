@@ -1,5 +1,6 @@
 import axios from "axios";
 import { cookieUtils } from "../utils/cookie";
+import { createPendingRequests } from "./pendingRequests";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://api.kaidz.xyz/api/v1";
 
@@ -10,6 +11,13 @@ const api = axios.create({
   },
   withCredentials: true,
 });
+
+const sharePending = createPendingRequests();
+function read(url, config = {}) {
+  const token = cookieUtils.get("token") || localStorage.getItem("token");
+  const key = JSON.stringify([token, url, config.params || {}]);
+  return sharePending(key, () => api.get(url, config).then((res) => res.data));
+}
 
 // Gắn JWT token đọc từ Cookie vào Header của mọi request nếu có
 api.interceptors.request.use(
@@ -41,7 +49,7 @@ export const authApi = {
   register: (data) => api.post("/auth/register", data).then((res) => res.data),
   verifyEmail: (token) => api.post("/auth/verify-email", { token }).then((res) => res.data),
   resendVerification: (email) => api.post("/auth/resend-verification", { email }).then((res) => res.data),
-  getMe: () => api.get("/auth/me").then((res) => res.data),
+  getMe: () => read("/auth/me"),
   forgotPassword: (email) => api.post("/auth/forgot-password", { email }).then((res) => res.data),
   resetPassword: (data) => api.post("/auth/reset-password", data).then((res) => res.data),
   loginGoogle: (data) => api.post("/auth/google", data).then((res) => res.data),
@@ -52,22 +60,14 @@ export const bankApi = {
 };
 
 export const groupApi = {
-  getGroups: () => api.get("/groups").then((res) => res.data),
-  getGroup: (id) => api.get(`/groups/${id}`).then((res) => res.data),
+  getGroups: () => read("/groups"),
+  getGroup: (id) => read(`/groups/${id}`),
   createGroup: (data) => api.post("/groups", data).then((res) => res.data),
-  getMembers: async (groupId) => {
-    try {
-      const res = await api.get(`/groups/${groupId}/members`);
-      return res.data;
-    } catch {
-      const grp = await api.get(`/groups/${groupId}`);
-      return grp.data?.members || [];
-    }
-  },
+  getMembers: (groupId) => read(`/groups/${groupId}/members`),
   addMember: (groupId, memberData) =>
     api.post(`/groups/${groupId}/members`, memberData).then((res) => res.data),
   getGroupTransactions: (groupId, params) =>
-    api.get(`/groups/${groupId}/transactions`, { params }).then((res) => res.data),
+    read(`/groups/${groupId}/transactions`, { params }),
 };
 
 export const transactionApi = {
@@ -77,9 +77,9 @@ export const transactionApi = {
 };
 
 export const paymentRequestApi = {
-  getMyDebts: () => api.get("/payment-requests", { params: { type: "DEBT" } }).then((res) => res.data),
-  getMyCredits: () => api.get("/payment-requests", { params: { type: "CREDIT" } }).then((res) => res.data),
-  getPaymentRequests: (params) => api.get("/payment-requests", { params }).then((res) => res.data),
+  getMyDebts: () => read("/payment-requests", { params: { type: "DEBT" } }),
+  getMyCredits: () => read("/payment-requests", { params: { type: "CREDIT" } }),
+  getPaymentRequests: (params) => read("/payment-requests", { params }),
   getDetail: (id) => api.get(`/payment-requests/${id}`).then((res) => res.data),
   confirmPaid: (id) => api.post(`/payment-requests/${id}/confirm-payment`).then((res) => res.data),
   approve: (id) => api.post(`/payment-requests/${id}/approve`).then((res) => res.data),
@@ -101,7 +101,7 @@ export const adminOutboxApi = {
 };
 
 export const paymentInfoApi = {
-  getMyInfo: () => api.get("/payment-info/me").then((res) => res.data),
+  getMyInfo: () => read("/payment-info/me"),
   saveMyInfo: (data) => api.put("/payment-info/me", data).then((res) => res.data),
 };
 

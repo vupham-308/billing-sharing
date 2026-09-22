@@ -8,6 +8,7 @@ import OAuthCallback from "./pages/OAuthCallback";
 import PaymentRequestDetail from "./pages/PaymentRequestDetail";
 import GroupStatementDetail from "./pages/GroupStatementDetail";
 import AdminOutbox from "./pages/AdminOutbox";
+import SepayGuide from "./pages/SepayGuide";
 
 export default function App() {
   return (
@@ -37,6 +38,10 @@ export default function App() {
           {/* Trang quản trị Email Outbox (viết chung trong fe) */}
           <Route path="/admin/outbox" element={<AdminOutbox />} />
           <Route path="/billing-sharing/admin/outbox" element={<AdminOutbox />} />
+
+          {/* Trang hướng dẫn thiết lập SePay Webhook */}
+          <Route path="/guides/sepay-setup" element={<SepayGuide />} />
+          <Route path="/billing-sharing/guides/sepay-setup" element={<SepayGuide />} />
 
           {/* Trang chủ mặc định là /billing-sharing */}
           <Route path="/billing-sharing" element={<Dashboard />} />

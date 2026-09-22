@@ -146,6 +146,20 @@ class GroupServiceTest {
     }
 
     @Test
+    void testGetMyGroups_ReturnsActualMemberCount() {
+        UUID groupId = UUID.randomUUID();
+        Group group = Group.builder().id(groupId).name("Group").createdBy(adminUser).build();
+        GroupMember membership = GroupMember.builder().group(group).user(adminUser).balance(0L).build();
+        when(groupMemberRepository.findByUserId(adminUser.getId())).thenReturn(List.of(membership));
+        when(groupMemberRepository.countByGroupId(groupId)).thenReturn(3L);
+
+        var result = groupService.getMyGroups(adminUserDetails);
+
+        assertEquals(3L, result.get(0).getMemberCount());
+        assertEquals(groupId, result.get(0).getId());
+    }
+
+    @Test
     void testAddMember_DuplicateMember_ThrowsConflict() {
         UUID groupId = UUID.randomUUID();
         Group group = Group.builder()
