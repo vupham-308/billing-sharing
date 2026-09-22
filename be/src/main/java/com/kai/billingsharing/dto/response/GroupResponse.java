@@ -22,5 +22,6 @@ public class GroupResponse {
     private String createdByName;
     private Long myBalanceInGroup;
     private long memberCount;
+    private List<GroupMemberResponse> members;
     private LocalDateTime createdAt;
 }

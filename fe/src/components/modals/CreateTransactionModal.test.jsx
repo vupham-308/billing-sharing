@@ -118,3 +118,28 @@ test("changing total or selection recalculates custom shares", async () => {
   expect(screen.queryByLabelText("Số tiền của vu")).toBeNull();
   expect(screen.getByLabelText("Số tiền của Payer").value).toBe("100.001");
 });
+
+test("total amount input handles focus, editing raw digits, live preview, and blur formatting", async () => {
+  render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={vi.fn()} />);
+  await screen.findByText("vu");
+
+  const totalInput = screen.getByLabelText("Tổng số tiền");
+  expect(totalInput.value).toBe("");
+
+  // Focus into total amount input
+  fireEvent.focus(totalInput);
+  fireEvent.change(totalInput, { target: { value: "343233" } });
+  // While focused, it shows raw digits to prevent Telex/IME cursor jumps
+  expect(totalInput.value).toBe("343233");
+  // Live formatted preview is visible
+  expect(screen.getByText(/=\s*343\.233\s*₫/)).toBeTruthy();
+
+  // Appending digits at the end
+  fireEvent.change(totalInput, { target: { value: "3432330" } });
+  expect(totalInput.value).toBe("3432330");
+  expect(screen.getByText(/=\s*3\.432\.330\s*₫/)).toBeTruthy();
+
+  // On blur, the input formats with dots
+  fireEvent.blur(totalInput);
+  expect(totalInput.value).toBe("3.432.330");
+});

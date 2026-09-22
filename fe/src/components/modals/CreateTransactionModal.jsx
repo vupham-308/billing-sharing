@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Receipt, Check, AlertCircle } from "lucide-react";
 import { formatVND, formatNumber } from "../../utils/formatters";
 import { splitAmount } from "../../utils/splitAmount";
+import { groupApi } from "../../services/api";
 
 export default function CreateTransactionModal({ isOpen, onClose, groups = [], onSubmit, currentUserId }) {
   const [groupId, setGroupId] = useState("");
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
+  const [isAmountFocused, setIsAmountFocused] = useState(false);
   const [splitType, setSplitType] = useState("EQUAL"); // "EQUAL" | "CUSTOM"
   const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [customShares, setCustomShares] = useState(null);
   const [shareDraft, setShareDraft] = useState(null);
@@ -16,7 +19,6 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const amountInputRef = useRef(null);
-  const cursorPositionRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && groups.length > 0 && !groupId) {
@@ -32,11 +34,14 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
       const selectedGroup = groups.find((g) => g.id === groupId);
       let groupMembers = selectedGroup?.members || [];
       if (!groupMembers || groupMembers.length === 0) {
+        setLoadingMembers(true);
         try {
           groupMembers = await groupApi.getMembers(groupId);
         } catch (err) {
           console.error("Không thể tải thành viên của nhóm", err);
           groupMembers = [];
+        } finally {
+          if (!isCancelled) setLoadingMembers(false);
         }
       }
 
@@ -57,11 +62,7 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
   }, [isOpen, groupId, groups]);
 
   const handleAmountChange = (e) => {
-    const input = e.target;
-    const cursorPos = input.selectionStart ?? input.value.length;
-    const digitsBefore = input.value.slice(0, cursorPos).replace(/\D/g, "").length;
-
-    let rawVal = input.value.replace(/\D/g, "");
+    let rawVal = e.target.value.replace(/\D/g, "");
     if (rawVal.length > 1 && rawVal.startsWith("0")) {
       rawVal = rawVal.replace(/^0+/, "") || "0";
     }
@@ -71,76 +72,11 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
       return;
     }
 
-    const nextFormatted = rawVal === "" ? "" : formatNumber(rawVal);
-
-    let targetPos = 0;
-    let digitCount = 0;
-    for (let i = 0; i < nextFormatted.length; i++) {
-      if (/\d/.test(nextFormatted[i])) {
-        digitCount++;
-      }
-      if (digitCount === digitsBefore) {
-        targetPos = i + 1;
-        break;
-      }
-    }
-    if (digitsBefore === 0) targetPos = 0;
-    if (digitCount < digitsBefore) targetPos = nextFormatted.length;
-
-    cursorPositionRef.current = targetPos;
     setTotalAmount(rawVal);
     setCustomShares(null);
     setShareDraft(null);
     setError("");
   };
-
-  const handleAmountKeyDown = (e) => {
-    if (e.key === "Backspace") {
-      const input = e.target;
-      const { selectionStart, selectionEnd } = input;
-      if (selectionStart === selectionEnd && selectionStart > 0) {
-        const charBefore = input.value[selectionStart - 1];
-        if (/\D/.test(charBefore)) {
-          e.preventDefault();
-          const val = input.value;
-          const newVal = val.slice(0, selectionStart - 2) + val.slice(selectionStart);
-          const rawVal = newVal.replace(/\D/g, "");
-          const digitsBefore = val.slice(0, selectionStart - 2).replace(/\D/g, "").length;
-
-          const nextFormatted = rawVal === "" ? "" : formatNumber(rawVal);
-          let targetPos = 0;
-          let digitCount = 0;
-          for (let i = 0; i < nextFormatted.length; i++) {
-            if (/\d/.test(nextFormatted[i])) digitCount++;
-            if (digitCount === digitsBefore) {
-              targetPos = i + 1;
-              break;
-            }
-          }
-          if (digitsBefore === 0) targetPos = 0;
-          if (digitCount < digitsBefore) targetPos = nextFormatted.length;
-
-          cursorPositionRef.current = targetPos;
-          setTotalAmount(rawVal);
-          setCustomShares(null);
-          setShareDraft(null);
-          setError("");
-        }
-      }
-    }
-  };
-
-  useLayoutEffect(() => {
-    if (cursorPositionRef.current !== null && amountInputRef.current) {
-      const pos = cursorPositionRef.current;
-      try {
-        amountInputRef.current.setSelectionRange(pos, pos);
-      } catch {
-        // Safe fallback in test environments
-      }
-      cursorPositionRef.current = null;
-    }
-  });
 
   if (!isOpen) return null;
 
@@ -307,18 +243,41 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Tổng số tiền (VNĐ)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Tổng số tiền (VNĐ)
+                </label>
+                {numericTotal > 0 && isAmountFocused && (
+                  <span className="text-xs font-bold text-indigo-600">
+                    = {formatVND(numericTotal)}
+                  </span>
+                )}
+              </div>
               <input
                 ref={amountInputRef}
                 type="text"
                 placeholder="0"
                 aria-label="Tổng số tiền"
                 inputMode="numeric"
-                value={totalAmount === "" ? "" : formatNumber(totalAmount)}
+                value={
+                  isAmountFocused
+                    ? totalAmount
+                    : totalAmount === ""
+                    ? ""
+                    : formatNumber(totalAmount)
+                }
+                onFocus={(e) => {
+                  setIsAmountFocused(true);
+                  e.target.select();
+                }}
+                onBlur={() => setIsAmountFocused(false)}
                 onChange={handleAmountChange}
-                onKeyDown={handleAmountKeyDown}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.target.blur();
+                  }
+                }}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
@@ -450,7 +409,13 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                               : ""
                           }
                           disabled={numericTotal < selectedMemberIds.length}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={(e) => {
+                            e.target.select();
+                            setShareDraft({
+                              memberId,
+                              value: displayedShares[memberId] !== undefined && displayedShares[memberId] !== null ? String(displayedShares[memberId]) : ""
+                            });
+                          }}
                           onChange={(e) => handleCustomShareChange(memberId, e.target.value)}
                           onBlur={() => commitShareDraft(memberId)}
                           onKeyDown={(e) => {
@@ -469,11 +434,15 @@ export default function CreateTransactionModal({ isOpen, onClose, groups = [], o
                 );
               })}
 
-              {members.length === 0 && (
+              {loadingMembers ? (
                 <div className="py-4 text-center text-xs text-slate-400">
                   Đang tải thành viên nhóm...
                 </div>
-              )}
+              ) : members.length === 0 ? (
+                <div className="py-4 text-center text-xs text-slate-400">
+                  Chưa tải được thành viên của nhóm. Vui lòng thử lại.
+                </div>
+              ) : null}
             </div>
           </div>
 

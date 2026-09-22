@@ -111,27 +111,22 @@ public class StatementController {
                 .collect(Collectors.groupingBy(s -> s.getTransaction().getId()));
 
         List<Map<String, Object>> txList = new ArrayList<>();
-        long userGrossDebt = 0L;
-        long userGrossCredit = 0L;
+        long userTotalShare = 0L;
+        long userTotalPaid = 0L;
+        long userPaidForOthers = 0L;
+        long userOwesOthers = 0L;
 
         for (Transaction t : transactions) {
-            Map<String, Object> txMap = new LinkedHashMap<>();
-            txMap.put("id", t.getId());
-            txMap.put("title", t.getTitle());
-            txMap.put("totalAmount", t.getTotalAmount());
-            txMap.put("payerId", t.getPayer().getId());
-            txMap.put("payerName", t.getPayer().getFullName());
-            txMap.put("createdAt", t.getCreatedAt());
-
             boolean isUserPayer = t.getPayer().getId().equals(currentUser.getId());
-            txMap.put("isUserPayer", isUserPayer);
-
             List<TransactionSharingMember> shares = sharesByTx.getOrDefault(t.getId(), List.of());
+
+            boolean isUserInShares = false;
             long userShare = 0L;
             List<Map<String, Object>> memberShares = new ArrayList<>();
             for (TransactionSharingMember sm : shares) {
                 if (sm.getUser().getId().equals(currentUser.getId())) {
                     userShare = sm.getShareAmount();
+                    isUserInShares = true;
                 }
                 Map<String, Object> smMap = new LinkedHashMap<>();
                 smMap.put("userId", sm.getUser().getId());
@@ -140,14 +135,29 @@ public class StatementController {
                 smMap.put("isPaid", Boolean.TRUE.equals(sm.getIsPaid()));
                 memberShares.add(smMap);
             }
+
+            // Chỉ hiển thị các giao dịch mà người dùng có tham gia (là người trả hoặc có trong danh sách chia)
+            if (!isUserPayer && !isUserInShares) {
+                continue;
+            }
+
+            Map<String, Object> txMap = new LinkedHashMap<>();
+            txMap.put("id", t.getId());
+            txMap.put("title", t.getTitle());
+            txMap.put("totalAmount", t.getTotalAmount());
+            txMap.put("payerId", t.getPayer().getId());
+            txMap.put("payerName", t.getPayer().getFullName());
+            txMap.put("createdAt", t.getCreatedAt());
+            txMap.put("isUserPayer", isUserPayer);
             txMap.put("currentUserShare", userShare);
             txMap.put("shares", memberShares);
 
-            if (!isUserPayer && userShare > 0) {
-                userGrossDebt += userShare;
-            } else if (isUserPayer) {
-                long othersOwe = t.getTotalAmount() - userShare;
-                userGrossCredit += othersOwe;
+            userTotalShare += userShare;
+            if (isUserPayer) {
+                userTotalPaid += t.getTotalAmount();
+                userPaidForOthers += (t.getTotalAmount() - userShare);
+            } else {
+                userOwesOthers += userShare;
             }
 
             txList.add(txMap);
@@ -156,12 +166,17 @@ public class StatementController {
 
         // Tính toán tổng kết các khoản cần chuyển / nhận của người dùng đang đăng nhập
         Map<String, Object> userSummary = new LinkedHashMap<>();
-        userSummary.put("userGrossDebt", userGrossDebt);
-        userSummary.put("userGrossCredit", userGrossCredit);
+        userSummary.put("userTotalShare", userTotalShare);
+        userSummary.put("userTotalPaid", userTotalPaid);
+        userSummary.put("userPaidForOthers", userPaidForOthers);
+        userSummary.put("userOwesOthers", userOwesOthers);
+        userSummary.put("userGrossDebt", userTotalShare);
+        userSummary.put("userGrossCredit", userPaidForOthers);
 
         long totalToTransfer = 0L;
         long totalToReceive = 0L;
-        List<Map<String, Object>> myPaymentRequests = new ArrayList<>();
+        List<Map<String, Object>> myPaymentRequestsToPay = new ArrayList<>();
+        List<Map<String, Object>> myPaymentRequestsToReceive = new ArrayList<>();
 
         if (snapshotObj instanceof Map<?, ?> snapMap) {
             Object itemsObj = snapMap.get("items");
@@ -177,9 +192,10 @@ public class StatementController {
 
                         if (myIdStr.equalsIgnoreCase(debtorIdStr)) {
                             totalToTransfer += amt;
-                            myPaymentRequests.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
+                            myPaymentRequestsToPay.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
                         } else if (myIdStr.equalsIgnoreCase(creditorIdStr)) {
                             totalToReceive += amt;
+                            myPaymentRequestsToReceive.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
                         }
                     }
                 }
@@ -188,7 +204,9 @@ public class StatementController {
 
         userSummary.put("totalToTransfer", totalToTransfer);
         userSummary.put("totalToReceive", totalToReceive);
-        userSummary.put("paymentRequests", myPaymentRequests);
+        userSummary.put("paymentRequests", myPaymentRequestsToPay);
+        userSummary.put("paymentRequestsToPay", myPaymentRequestsToPay);
+        userSummary.put("paymentRequestsToReceive", myPaymentRequestsToReceive);
         response.put("userSummary", userSummary);
 
         return ResponseEntity.ok(response);

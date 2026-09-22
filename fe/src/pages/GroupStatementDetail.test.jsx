@@ -164,3 +164,112 @@ test("displays transactions with total, payer, user share and sums the amount us
   expect(screen.getByText("99998888")).toBeTruthy();
   expect(screen.getByText("Quét mã VietQR chuyển tiền")).toBeTruthy();
 });
+
+test("displays creditor reconciliation correctly with total user paid, user share, and incoming transfers", async () => {
+  const groupId = "g2";
+  const periodId = "p2";
+
+  mocks.getGroup.mockResolvedValue({ id: groupId, name: "Tài chính Markettin" });
+  mocks.getGroups.mockResolvedValue([{ id: groupId, name: "Tài chính Markettin" }]);
+  mocks.getGroupStatements.mockResolvedValue([
+    {
+      id: periodId,
+      groupId,
+      periodNumber: 1,
+      startDate: "2026-09-01T00:00:00",
+      endDate: "2026-09-22T23:59:59",
+      processedAt: "2026-09-22T08:30:00",
+      status: "PROCESSED",
+    },
+  ]);
+
+  mocks.getStatementDetail.mockResolvedValue({
+    id: periodId,
+    groupId,
+    periodNumber: 1,
+    startDate: "2026-09-01T00:00:00",
+    endDate: "2026-09-22T23:59:59",
+    processedAt: "2026-09-22T08:30:00",
+    status: "PROCESSED",
+    transactions: [
+      {
+        id: "tx-test-1",
+        title: "test 1",
+        totalAmount: 600000,
+        payerId: "u1",
+        payerName: "An",
+        isUserPayer: true,
+        currentUserShare: 111111,
+        createdAt: "2026-09-22T10:00:00",
+        shares: [
+          { userId: "u1", userName: "An", shareAmount: 111111 },
+          { userId: "u2", userName: "Bình", shareAmount: 488889 },
+        ],
+      },
+    ],
+    userSummary: {
+      userTotalShare: 111111,
+      userTotalPaid: 600000,
+      userPaidForOthers: 488889,
+      userOwesOthers: 0,
+      userGrossDebt: 111111,
+      userGrossCredit: 488889,
+      totalToTransfer: 0,
+      totalToReceive: 488889,
+      paymentRequestsToPay: [],
+      paymentRequestsToReceive: [
+        {
+          debtorId: "u2",
+          debtorName: "Bình",
+          amount: 488889,
+          status: "PENDING",
+        },
+      ],
+    },
+    snapshot: {
+      items: [
+        {
+          requestId: "pr-c1",
+          transactionTitle: "Tất toán công nợ kỳ 1",
+          debtorName: "Bình",
+          creditorName: "An",
+          amount: 488889,
+          status: "PENDING",
+        },
+      ],
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={[`/billing-sharing/groups/${groupId}/statements`]}>
+      <Routes>
+        <Route
+          path="/billing-sharing/groups/:groupId/statements"
+          element={<GroupStatementDetail />}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+
+  // Group name
+  expect((await screen.findAllByText("Tài chính Markettin")).length).toBeGreaterThan(0);
+
+  // Transaction title and total
+  expect(await screen.findByText("test 1")).toBeTruthy();
+  expect(screen.getAllByText("600.000 ₫").length).toBeGreaterThanOrEqual(1);
+
+  // User share in table and footer
+  expect(screen.getAllByText("111.111 ₫").length).toBeGreaterThanOrEqual(1);
+
+  // Reconciliation breakdown for creditor
+  expect(screen.getByText(/Chi tiết đối soát & quyền lợi nhận tiền của bạn/)).toBeTruthy();
+  expect(screen.getByText(/Tổng tiền bạn đã chi trả cho cả nhóm/)).toBeTruthy();
+  expect(screen.getByText(/Trừ phần tiền bạn tự tiêu/)).toBeTruthy();
+  expect(screen.getByText("-111.111 ₫")).toBeTruthy();
+  expect(screen.getAllByText("+488.889 ₫").length).toBeGreaterThanOrEqual(1);
+
+  // Incoming payment from debtor Bình
+  expect(screen.getByText("Chi tiết các khoản sẽ chuyển cho bạn (1 người)")).toBeTruthy();
+  expect(screen.getAllByText("Bình").length).toBeGreaterThanOrEqual(1);
+});
+

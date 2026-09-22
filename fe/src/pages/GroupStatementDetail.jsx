@@ -114,11 +114,16 @@ export default function GroupStatementDetail() {
   const transactions = statementData?.transactions || [];
   const userSummary = statementData?.userSummary || {};
 
-  const myPaymentRequests = userSummary.paymentRequests || [];
+  const myPaymentRequests = userSummary.paymentRequestsToPay || userSummary.paymentRequests || [];
+  const incomingPayments = userSummary.paymentRequestsToReceive || [];
   const totalToTransfer = userSummary.totalToTransfer || 0;
   const totalToReceive = userSummary.totalToReceive || 0;
-  const userGrossDebt = userSummary.userGrossDebt || 0;
-  const userGrossCredit = userSummary.userGrossCredit || 0;
+  const userTotalShare = userSummary.userTotalShare ?? userSummary.userGrossDebt ?? 0;
+  const userTotalPaid = userSummary.userTotalPaid ?? 0;
+  const userPaidForOthers = userSummary.userPaidForOthers ?? userSummary.userGrossCredit ?? 0;
+  const userOwesOthers = userSummary.userOwesOthers ?? 0;
+  const userGrossDebt = userTotalShare;
+  const userGrossCredit = userPaidForOthers;
 
   // Tính tổng các khoản chi tiêu trong kỳ
   const totalPeriodExpense = transactions.reduce((sum, tx) => sum + (tx.totalAmount || 0), 0);
@@ -236,7 +241,9 @@ export default function GroupStatementDetail() {
               </div>
 
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                <span className="text-xs text-slate-400 font-medium block">Số tiền bạn cần chuyển</span>
+                <span className="text-xs text-slate-400 font-medium block">
+                  {totalToReceive > 0 ? "Số tiền bạn được nhận" : "Số tiền bạn cần chuyển"}
+                </span>
                 <span
                   className={`text-lg font-extrabold mt-0.5 block ${
                     totalToTransfer > 0
@@ -256,7 +263,7 @@ export default function GroupStatementDetail() {
                   {totalToTransfer > 0
                     ? `Cần chuyển cho ${myPaymentRequests.length} thành viên`
                     : totalToReceive > 0
-                    ? "Các thành viên khác sẽ chuyển lại cho bạn"
+                    ? `${incomingPayments.length > 0 ? `${incomingPayments.length} thành viên sẽ chuyển cho bạn` : "Các thành viên khác sẽ chuyển lại cho bạn"}`
                     : "Không còn công nợ cần chuyển"}
                 </span>
               </div>
@@ -285,28 +292,73 @@ export default function GroupStatementDetail() {
               </div>
 
               <div className="p-6 space-y-4">
-                {/* Banner giải thích công thức cấn trừ */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-slate-900">Chi tiết cấn trừ công nợ:</p>
-                    <p className="text-slate-600">
-                      • Tổng tiền các hóa đơn bạn tham gia chia tiền:{" "}
-                      <strong className="text-slate-900">{formatVND(userGrossDebt)}</strong>
-                    </p>
-                    {userGrossCredit > 0 && (
-                      <p className="text-emerald-700">
-                        • Cấn trừ từ các hóa đơn bạn đã chi trả cho nhóm:{" "}
-                        <strong>-{formatVND(userGrossCredit)}</strong>
+                {/* Banner giải thích công thức cấn trừ theo vị thế người nhận hay người chuyển */}
+                {totalToReceive > 0 ? (
+                  <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/80 text-xs text-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                        Chi tiết đối soát & quyền lợi nhận tiền của bạn:
                       </p>
-                    )}
+                      <p className="text-slate-600">
+                        • Tổng tiền bạn đã chi trả cho cả nhóm:{" "}
+                        <strong className="text-slate-900">{formatVND(userTotalPaid)}</strong>
+                      </p>
+                      <p className="text-slate-600">
+                        • Trừ phần tiền bạn tự tiêu (tham gia chia tiền):{" "}
+                        <strong className="text-rose-600">-{formatVND(userTotalShare)}</strong>
+                      </p>
+                      {userOwesOthers > 0 && (
+                        <p className="text-rose-600">
+                          • Cấn trừ khoản bạn nợ từ các hóa đơn do người khác trả:{" "}
+                          <strong>-{formatVND(userOwesOthers)}</strong>
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-left md:text-right pt-2 md:pt-0 border-t md:border-t-0 border-emerald-200">
+                      <span className="text-slate-500 block text-[11px]">Tổng số tiền bạn được nhận lại:</span>
+                      <span className="text-xl font-black text-emerald-600">
+                        +{formatVND(totalToReceive)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-left md:text-right pt-2 md:pt-0 border-t md:border-t-0 border-slate-200">
-                    <span className="text-slate-500 block text-[11px]">Tổng số tiền bạn cần chuyển:</span>
-                    <span className="text-lg font-extrabold text-rose-600">
-                      {formatVND(totalToTransfer)}
-                    </span>
+                ) : totalToTransfer > 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                        Chi tiết cấn trừ công nợ của bạn:
+                      </p>
+                      <p className="text-slate-600">
+                        • Tổng tiền các hóa đơn bạn tham gia chia tiền:{" "}
+                        <strong className="text-slate-900">{formatVND(userTotalShare)}</strong>
+                      </p>
+                      {userTotalPaid > 0 && (
+                        <p className="text-emerald-700">
+                          • Cấn trừ từ các hóa đơn bạn đã chi trả cho nhóm:{" "}
+                          <strong>-{formatVND(userTotalPaid)}</strong>
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-left md:text-right pt-2 md:pt-0 border-t md:border-t-0 border-slate-200">
+                      <span className="text-slate-500 block text-[11px]">Tổng số tiền bạn cần chuyển:</span>
+                      <span className="text-xl font-black text-rose-600">
+                        {formatVND(totalToTransfer)}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">Chi tiết đối soát công nợ:</p>
+                      <p className="text-slate-600 mt-1">
+                        • Tiền bạn tham gia chia: <strong>{formatVND(userTotalShare)}</strong>
+                        {userTotalPaid > 0 && ` — Bạn đã chi trả: ${formatVND(userTotalPaid)}`}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-emerald-600">Công nợ cân bằng (0 ₫)</span>
+                  </div>
+                )}
 
                 {/* Danh sách các lệnh thanh toán user cần chuyển */}
                 {myPaymentRequests.length > 0 ? (
@@ -400,12 +452,52 @@ export default function GroupStatementDetail() {
                     </div>
                   </div>
                 ) : totalToReceive > 0 ? (
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>
-                      Bạn là người nhận tiền trong kỳ sao kê này. Các thành viên khác sẽ chuyển lại cho bạn tổng cộng{" "}
-                      <strong>{formatVND(totalToReceive)}</strong>.
-                    </span>
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        Bạn là người nhận tiền trong kỳ sao kê này. Các thành viên khác sẽ chuyển lại cho bạn tổng cộng{" "}
+                        <strong>{formatVND(totalToReceive)}</strong>.
+                      </span>
+                    </div>
+
+                    {incomingPayments.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                          Chi tiết các khoản sẽ chuyển cho bạn ({incomingPayments.length} người)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {incomingPayments.map((req, idx) => (
+                            <div
+                              key={req.requestId || idx}
+                              className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="text-xs text-slate-500 block">Người chuyển:</span>
+                                <span className="text-sm font-bold text-slate-900">{req.debtorName}</span>
+                                <div className="mt-1">
+                                  <span
+                                    className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                                      req.status === "PAID"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : "bg-amber-100 text-amber-800"
+                                    }`}
+                                  >
+                                    {req.status === "PAID" ? "Đã nhận tiền" : "Chờ thanh toán"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-slate-500 block">Số tiền:</span>
+                                <span className="text-base font-extrabold text-emerald-600">
+                                  +{formatVND(req.amount)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-center gap-2">
@@ -423,10 +515,10 @@ export default function GroupStatementDetail() {
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Receipt className="w-4 h-4 text-indigo-600" />
-                  <h3 className="text-sm font-bold text-slate-900">Chi Tiết Từng Hóa Đơn Trong Kỳ</h3>
+                  <h3 className="text-sm font-bold text-slate-900">Chi Tiết Từng Hóa Đơn Bạn Tham Gia</h3>
                 </div>
                 <div className="text-xs text-slate-500">
-                  Tổng {transactions.length} hóa đơn — Tổng tiền:{" "}
+                  Tổng {transactions.length} hóa đơn bạn tham gia — Tổng tiền:{" "}
                   <strong className="text-slate-900">{formatVND(totalPeriodExpense)}</strong>
                 </div>
               </div>
@@ -446,7 +538,7 @@ export default function GroupStatementDetail() {
                     {transactions.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                          Không có hóa đơn nào phát sinh trong khoảng thời gian của kỳ này.
+                          Không có hóa đơn nào bạn tham gia trong khoảng thời gian của kỳ này.
                         </td>
                       </tr>
                     ) : (
@@ -531,14 +623,14 @@ export default function GroupStatementDetail() {
                   {transactions.length > 0 && (
                     <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200 text-slate-800 text-xs">
                       <tr>
-                        <td className="px-4 py-3">Tổng cộng ({transactions.length} hóa đơn)</td>
+                        <td className="px-4 py-3">Tổng cộng ({transactions.length} hóa đơn bạn tham gia)</td>
                         <td className="px-4 py-3 text-slate-900 font-extrabold">{formatVND(totalPeriodExpense)}</td>
                         <td className="px-4 py-3">—</td>
                         <td className="px-4 py-3 text-rose-600 font-extrabold">
-                          {formatVND(userGrossDebt)}
+                          {formatVND(userTotalShare)}
                         </td>
                         <td className="px-4 py-3 text-slate-500 font-normal">
-                          {userGrossCredit > 0 && `(Cấn trừ từ phần bạn đã trả: -${formatVND(userGrossCredit)})`}
+                          {userTotalPaid > 0 && `(Bạn đã ứng trả cho nhóm: ${formatVND(userTotalPaid)})`}
                         </td>
                       </tr>
                     </tfoot>

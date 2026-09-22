@@ -162,4 +162,92 @@ class StatementControllerTest {
         assertEquals(100000L, userSummary.get("userGrossDebt"));
         assertEquals(100000L, userSummary.get("totalToTransfer"));
     }
+
+    @Test
+    void testGetStatementDetail_ExcludesTransactionsWhereUserDidNotParticipate() {
+        UUID groupId = UUID.randomUUID();
+        UUID periodId = UUID.randomUUID();
+        User currentUser = User.builder().id(UUID.randomUUID()).fullName("User Me").role(Role.USER).build();
+        User otherUser1 = User.builder().id(UUID.randomUUID()).fullName("Friend 1").role(Role.USER).build();
+        User otherUser2 = User.builder().id(UUID.randomUUID()).fullName("Friend 2").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(currentUser);
+
+        Group group = Group.builder().id(groupId).name("Nhóm Test").build();
+
+        // tx1: currentUser is payer
+        UUID tx1Id = UUID.randomUUID();
+        Transaction tx1 = Transaction.builder()
+                .id(tx1Id)
+                .title("Hóa đơn 1 (Me paid)")
+                .totalAmount(200000L)
+                .payer(currentUser)
+                .group(group)
+                .createdAt(LocalDateTime.now().minusDays(3))
+                .build();
+        TransactionSharingMember sm1 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .transaction(tx1)
+                .user(currentUser)
+                .shareAmount(100000L)
+                .isPaid(true)
+                .build();
+        TransactionSharingMember sm2 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .transaction(tx1)
+                .user(otherUser1)
+                .shareAmount(100000L)
+                .isPaid(false)
+                .build();
+
+        // tx2: otherUser1 is payer, only otherUser1 and otherUser2 share (currentUser is NOT involved)
+        UUID tx2Id = UUID.randomUUID();
+        Transaction tx2 = Transaction.builder()
+                .id(tx2Id)
+                .title("Hóa đơn 2 (Not involved)")
+                .totalAmount(300000L)
+                .payer(otherUser1)
+                .group(group)
+                .createdAt(LocalDateTime.now().minusDays(2))
+                .build();
+        TransactionSharingMember sm3 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .transaction(tx2)
+                .user(otherUser1)
+                .shareAmount(150000L)
+                .isPaid(true)
+                .build();
+        TransactionSharingMember sm4 = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .transaction(tx2)
+                .user(otherUser2)
+                .shareAmount(150000L)
+                .isPaid(false)
+                .build();
+
+        StatementPeriod period = StatementPeriod.builder()
+                .id(periodId)
+                .group(group)
+                .periodNumber(1)
+                .startDate(LocalDateTime.now().minusMonths(1))
+                .endDate(LocalDateTime.now())
+                .snapshotJson("{\"groupId\":\"" + groupId + "\",\"items\":[]}")
+                .status("PROCESSED")
+                .build();
+
+        when(groupMemberRepository.existsByGroupIdAndUserId(groupId, currentUser.getId())).thenReturn(true);
+        when(statementPeriodRepository.findById(periodId)).thenReturn(Optional.of(period));
+        when(transactionRepository.findByGroupIdAndDateRange(eq(groupId), any(), any())).thenReturn(List.of(tx1, tx2));
+        when(sharingMemberRepository.findByTransactionIdIn(List.of(tx1Id, tx2Id))).thenReturn(List.of(sm1, sm2, sm3, sm4));
+
+        ResponseEntity<Map<String, Object>> response = statementController.getStatementDetail(groupId, periodId, userDetails);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> txList = (List<Map<String, Object>>) response.getBody().get("transactions");
+        // tx2 must be excluded because currentUser did not participate
+        assertEquals(1, txList.size());
+        assertEquals("Hóa đơn 1 (Me paid)", txList.get(0).get("title"));
+    }
 }

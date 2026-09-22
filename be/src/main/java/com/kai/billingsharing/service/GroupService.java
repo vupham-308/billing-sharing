@@ -21,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,6 +77,14 @@ public class GroupService {
                 .createdByName(creator.getFullName())
                 .myBalanceInGroup(0L)
                 .memberCount(1L)
+                .members(List.of(GroupMemberResponse.builder()
+                        .id(creatorMember.getId())
+                        .userId(creator.getId())
+                        .email(creator.getEmail())
+                        .fullName(creator.getFullName())
+                        .balance(0L)
+                        .joinedAt(creatorMember.getJoinedAt())
+                        .build()))
                 .createdAt(savedGroup.getCreatedAt())
                 .build();
     }
@@ -124,6 +133,19 @@ public class GroupService {
 
         return myMemberships.stream().map(membership -> {
             Group group = membership.getGroup();
+            List<GroupMember> groupMembers = groupMemberRepository.findByGroupId(group.getId());
+            List<GroupMemberResponse> memberResponses = groupMembers != null
+                    ? groupMembers.stream().map(m -> GroupMemberResponse.builder()
+                            .id(m.getId())
+                            .userId(m.getUser().getId())
+                            .email(m.getUser().getEmail())
+                            .fullName(m.getUser().getFullName())
+                            .balance(m.getBalance())
+                            .joinedAt(m.getJoinedAt())
+                            .build()
+                    ).collect(Collectors.toList())
+                    : Collections.emptyList();
+
             return GroupResponse.builder()
                     .id(group.getId())
                     .name(group.getName())
@@ -132,6 +154,7 @@ public class GroupService {
                     .createdByName(group.getCreatedBy().getFullName())
                     .myBalanceInGroup(membership.getBalance())
                     .memberCount(groupMemberRepository.countByGroupId(group.getId()))
+                    .members(memberResponses)
                     .createdAt(group.getCreatedAt())
                     .build();
         }).collect(Collectors.toList());
