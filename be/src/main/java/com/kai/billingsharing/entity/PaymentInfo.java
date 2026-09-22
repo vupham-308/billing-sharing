@@ -45,6 +45,9 @@ public class PaymentInfo {
     @Column(name = "account_holder_name", nullable = false, columnDefinition = "NVARCHAR(255)")
     private String accountHolderName;
 
+    @Column(name = "sepay_api_key", length = 255)
+    private String sepayApiKey;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

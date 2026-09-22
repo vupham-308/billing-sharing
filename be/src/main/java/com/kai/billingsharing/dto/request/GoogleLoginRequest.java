@@ -16,4 +16,10 @@ public class GoogleLoginRequest {
 
     @NotBlank(message = "Google ID Token không được để trống")
     private String idToken;
+
+    private String fullName;
+    private String bankCode;
+    private String bankName;
+    private String accountNumber;
+    private String accountHolderName;
 }

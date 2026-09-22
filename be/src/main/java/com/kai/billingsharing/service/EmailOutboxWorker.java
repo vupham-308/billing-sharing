@@ -54,6 +54,7 @@ public class EmailOutboxWorker {
      * Lắng nghe sự kiện tạo Outbox sau khi transaction nghiệp vụ commit thành công.
      * Chạy bất đồng bộ, Zero Continuous Polling.
      */
+    @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onOutboxCreated(OutboxCreatedEvent event) {
         log.info("Nhận sự kiện OutboxCreatedEvent cho id={}. Kích hoạt xử lý gửi email...", event.outboxId());

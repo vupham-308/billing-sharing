@@ -1,5 +1,6 @@
 package com.kai.billingsharing.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,4 +20,7 @@ public class AuthResponse {
     private Long expiresIn;
 
     private UserResponse user;
+
+    @JsonProperty("isNewUser")
+    private Boolean isNewUser;
 }

@@ -148,7 +148,14 @@ export default function PaymentRequestDetail() {
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại bảng chi tiêu</span>
           </Link>
-          <span className="text-xs font-mono text-slate-400">ID: {request.id.slice(0, 8)}</span>
+          <div className="flex items-center gap-2">
+            {request.identify && (
+              <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                {request.identify}
+              </span>
+            )}
+            <span className="text-xs font-mono text-slate-400">ID: {request.id.slice(0, 8)}</span>
+          </div>
         </div>
 
         {/* Alerts */}

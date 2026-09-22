@@ -32,6 +32,7 @@ public class ScheduledTaskService {
     private final EmailOutboxService emailOutboxService;
     private final EmailService emailService;
     private final TokenRepository tokenRepository;
+    private final PaymentRequestService paymentRequestService;
     private final Clock businessClock;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -76,15 +77,19 @@ public class ScheduledTaskService {
         for (TransactionSharingMember share : unpaidShares) {
             if (!paymentRequestRepository.existsBySharingMemberId(share.getId())) {
                 User creditor = share.getTransaction().getPayer();
-                String note = "Thanh toan " + share.getTransaction().getTitle() + " - Nhom " + group.getName();
+                User debtor = share.getUser();
+                String identify = paymentRequestService.generateUniqueIdentify();
+                String debtorBankName = paymentRequestService.resolveDebtorName(debtor);
+                String note = PaymentDescriptionUtil.buildTransferDescriptionWithIdentify(identify, debtorBankName);
 
                 PaymentRequest pr = PaymentRequest.builder()
                         .transaction(share.getTransaction())
                         .sharingMember(share)
-                        .debtor(share.getUser())
+                        .debtor(debtor)
                         .creditor(creditor)
                         .amount(share.getShareAmount())
                         .status(PaymentRequestStatus.PENDING)
+                        .identify(identify)
                         .note(note)
                         .build();
 
@@ -130,11 +135,12 @@ public class ScheduledTaskService {
             item.put("creditorName", creditor.getFullName());
             item.put("amount", pr.getAmount());
             item.put("status", pr.getStatus().name());
+            item.put("identify", pr.getIdentify());
             item.put("bankCode", paymentInfo != null ? paymentInfo.getBankCode() : null);
             item.put("bankName", paymentInfo != null ? paymentInfo.getBankName() : null);
             item.put("accountNumber", paymentInfo != null ? paymentInfo.getAccountNumber() : null);
             item.put("accountHolderName", paymentInfo != null ? paymentInfo.getAccountHolderName() : null);
-            item.put("description", PaymentDescriptionUtil.buildPaymentDescription(pr.getDebtor().getFullName()));
+            item.put("description", pr.getNote() != null ? pr.getNote() : PaymentDescriptionUtil.buildPaymentDescription(pr.getDebtor().getFullName()));
             snapshotItems.add(item);
         }
 
@@ -191,7 +197,20 @@ public class ScheduledTaskService {
             for (PaymentRequest pr : requests) {
                 User creditor = pr.getCreditor();
                 PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
-                String cleanDesc = PaymentDescriptionUtil.buildPaymentDescription(debtor.getFullName());
+                String debtorBankName = paymentRequestService.resolveDebtorName(debtor);
+                if (pr.getIdentify() == null || pr.getIdentify().isBlank()) {
+                    String identify = paymentRequestService.generateUniqueIdentify();
+                    pr.setIdentify(identify);
+                    pr.setNote(PaymentDescriptionUtil.buildTransferDescriptionWithIdentify(identify, debtorBankName));
+                    pr = paymentRequestRepository.save(pr);
+                } else if (pr.getStatus() == PaymentRequestStatus.PENDING) {
+                    String expectedNote = PaymentDescriptionUtil.buildTransferDescriptionWithIdentify(pr.getIdentify(), debtorBankName);
+                    if (!expectedNote.equalsIgnoreCase(pr.getNote())) {
+                        pr.setNote(expectedNote);
+                        pr = paymentRequestRepository.save(pr);
+                    }
+                }
+                String cleanDesc = pr.getNote();
                 String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
 
                 if (pr.getStatus() == PaymentRequestStatus.PENDING) {
@@ -297,7 +316,9 @@ public class ScheduledTaskService {
                 User creditor = pr.getCreditor();
                 String groupName = pr.getTransaction().getGroup().getName();
                 PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
-                String cleanDesc = PaymentDescriptionUtil.buildPaymentDescription(debtor.getFullName());
+                String cleanDesc = pr.getNote() != null && !pr.getNote().isBlank()
+                        ? pr.getNote()
+                        : PaymentDescriptionUtil.buildTransferDescriptionWithIdentify(pr.getIdentify(), paymentRequestService.resolveDebtorName(debtor));
                 String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
 
                 String qrImgHtml = "";

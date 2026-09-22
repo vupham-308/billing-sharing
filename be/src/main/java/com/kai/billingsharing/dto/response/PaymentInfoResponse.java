@@ -19,5 +19,7 @@ public class PaymentInfoResponse {
     private String bankName;
     private String accountNumber;
     private String accountHolderName;
+    private String sepayApiKey;
+    private Boolean hasSepayApiKey;
     private LocalDateTime updatedAt;
 }

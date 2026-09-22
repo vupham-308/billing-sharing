@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { CreditCard, QrCode, Copy, Check, Edit3, ShieldCheck } from "lucide-react";
 
 export default function PaymentInfoCard({ paymentInfo, onOpenEditModal, onPreviewPersonalQr }) {
@@ -41,10 +41,22 @@ export default function PaymentInfoCard({ paymentInfo, onOpenEditModal, onPrevie
 
           <div className="flex items-center justify-between mb-3 text-xs text-slate-300">
             <span className="font-semibold uppercase tracking-wider">{paymentInfo.bankCode}</span>
-            <span className="flex items-center gap-1 text-[11px] bg-slate-700/60 px-2 py-0.5 rounded text-emerald-400">
-              <ShieldCheck className="w-3 h-3" />
-              <span>Chính chủ</span>
-            </span>
+            <div className="flex items-center gap-1.5">
+              {paymentInfo.hasSepayApiKey || paymentInfo.sepayApiKey ? (
+                <span className="flex items-center gap-1 text-[11px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 font-medium border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>SePay Webhook Auto</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[11px] bg-slate-700/60 px-2 py-0.5 rounded text-slate-300 font-medium">
+                  <span>Duyệt thủ công</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-[11px] bg-slate-700/60 px-2 py-0.5 rounded text-emerald-400">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Chính chủ</span>
+              </span>
+            </div>
           </div>
 
           <div className="mb-3">

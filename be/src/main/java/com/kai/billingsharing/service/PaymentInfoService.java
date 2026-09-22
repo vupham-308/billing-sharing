@@ -42,6 +42,7 @@ public class PaymentInfoService {
         info.setBankName(request.getBankName() != null ? request.getBankName().trim() : null);
         info.setAccountNumber(request.getAccountNumber().trim());
         info.setAccountHolderName(request.getAccountHolderName().trim().toUpperCase());
+        info.setSepayApiKey(request.getSepayApiKey() != null && !request.getSepayApiKey().isBlank() ? request.getSepayApiKey().trim() : null);
 
         PaymentInfo saved = paymentInfoRepository.save(info);
         return mapToResponse(saved);
@@ -60,6 +61,8 @@ public class PaymentInfoService {
                 .bankName(info.getBankName())
                 .accountNumber(info.getAccountNumber())
                 .accountHolderName(info.getAccountHolderName())
+                .sepayApiKey(info.getSepayApiKey())
+                .hasSepayApiKey(info.getSepayApiKey() != null && !info.getSepayApiKey().isBlank())
                 .updatedAt(info.getUpdatedAt())
                 .build();
     }

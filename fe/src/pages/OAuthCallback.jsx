@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Loader2, AlertCircle, CheckCircle2, Receipt } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -10,8 +10,12 @@ export default function OAuthCallback() {
 
   const [status, setStatus] = useState("PROCESSING"); // "PROCESSING" | "SUCCESS" | "ERROR"
   const [errorMessage, setErrorMessage] = useState("");
+  const hasExecutedRef = useRef(false);
 
   useEffect(() => {
+    if (hasExecutedRef.current) return;
+    hasExecutedRef.current = true;
+
     let isCancelled = false;
 
     async function handleCallback() {
@@ -46,6 +50,17 @@ export default function OAuthCallback() {
           setTimeout(() => {
             navigate("/billing-sharing");
           }, 1000);
+        } else if (result.isNewUser) {
+          // User Google chưa có trong hệ thống -> lưu thông tin pending vào sessionStorage và back về /billing-sharing để nhập STK
+          sessionStorage.setItem(
+            "google_pending_registration",
+            JSON.stringify({
+              idToken: result.idToken || tokenToVerify,
+              email: result.email,
+              fullName: result.fullName,
+            })
+          );
+          navigate("/billing-sharing", { replace: true });
         } else {
           setStatus("ERROR");
           setErrorMessage(result.message || "Xác thực đăng nhập Google thất bại.");

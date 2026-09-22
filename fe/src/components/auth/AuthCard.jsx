@@ -38,6 +38,10 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
   const [registerStep, setRegisterStep] = useState(1); // 1: Thông tin tài khoản, 2: Cài đặt STK VietQR
   const [isGsiRendered, setIsGsiRendered] = useState(false);
 
+  // Google pending registration states
+  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
+  const [googleIdToken, setGoogleIdToken] = useState(null);
+
   // Form inputs
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -65,6 +69,27 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
   const [resendCountdown, setResendCountdown] = useState(0);
   const [resendSuccessMsg, setResendSuccessMsg] = useState("");
   const [isResending, setIsResending] = useState(false);
+
+  // Khôi phục phiên đăng ký Google pending (nếu vừa redirect từ /callback)
+  useEffect(() => {
+    try {
+      const pendingStr = sessionStorage.getItem("google_pending_registration");
+      if (pendingStr) {
+        const pending = JSON.parse(pendingStr);
+        if (pending.idToken) {
+          setGoogleIdToken(pending.idToken);
+          setIsGoogleAuth(true);
+          setName(pending.fullName || "");
+          setEmail(pending.email || "");
+          setAccountHolderName(removeVietnameseTones(pending.fullName || ""));
+          setMode("REGISTER");
+          setRegisterStep(2);
+        }
+      }
+    } catch (e) {
+      console.error("Lỗi khi khôi phục thông tin đăng ký Google:", e);
+    }
+  }, []);
 
   // Nạp danh sách ngân hàng từ Database qua API (Tuyệt đối không dùng fallback tĩnh)
   useEffect(() => {
@@ -108,6 +133,9 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
     setRegisterStep(1);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setIsGoogleAuth(false);
+    setGoogleIdToken(null);
+    sessionStorage.removeItem("google_pending_registration");
   };
 
   const handleResendVerification = async (targetEmail) => {
@@ -146,6 +174,23 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
       setError("");
       try {
         const result = await loginWithGoogle(response.credential);
+        if (result.isNewUser) {
+          // User Google chưa có trong hệ thống -> chuyển sang Bước 2 cài đặt STK VietQR
+          const pending = {
+            idToken: response.credential,
+            email: result.email,
+            fullName: result.fullName,
+          };
+          sessionStorage.setItem("google_pending_registration", JSON.stringify(pending));
+          setGoogleIdToken(response.credential);
+          setIsGoogleAuth(true);
+          setName(result.fullName || "");
+          setEmail(result.email || "");
+          setAccountHolderName(removeVietnameseTones(result.fullName || ""));
+          setMode("REGISTER");
+          setRegisterStep(2);
+          return;
+        }
         if (!result.success) {
           setError(result.message || "Đăng nhập bằng Google thất bại.");
         }
@@ -305,11 +350,25 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
           accountNumber: accountNumber.trim(),
           accountHolderName: accountHolderName.trim().toUpperCase(),
         };
-        const res = await register(name.trim(), email.trim(), password, bankPayload);
-        if (!res.success) {
-          setError(res.message);
-        } else if (res.needActivation) {
-          setRegisteredPendingEmail(email.trim());
+
+        if (isGoogleAuth && googleIdToken) {
+          const res = await loginWithGoogle({
+            idToken: googleIdToken,
+            fullName: name.trim(),
+            ...bankPayload,
+          });
+          if (!res.success) {
+            setError(res.message || "Đăng ký bằng Google thất bại. Vui lòng thử lại.");
+          } else {
+            sessionStorage.removeItem("google_pending_registration");
+          }
+        } else {
+          const res = await register(name.trim(), email.trim(), password, bankPayload);
+          if (!res.success) {
+            setError(res.message);
+          } else if (res.needActivation) {
+            setRegisteredPendingEmail(email.trim());
+          }
         }
       } catch (err) {
         setError(err.message || "Xác thực thất bại");
@@ -470,7 +529,16 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
                     ? "bg-indigo-600 text-white shadow-xs"
                     : "bg-emerald-100 text-emerald-700 cursor-pointer"
                 }`}
-                onClick={() => registerStep === 2 && setRegisterStep(1)}
+                onClick={() => {
+                  if (registerStep === 2) {
+                    if (isGoogleAuth) {
+                      setIsGoogleAuth(false);
+                      setGoogleIdToken(null);
+                      sessionStorage.removeItem("google_pending_registration");
+                    }
+                    setRegisterStep(1);
+                  }
+                }}
               >
                 <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
                   1
@@ -637,6 +705,33 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
         {/* ==================== REGISTER STEP 2: TÀI KHOẢN NHẬN TIỀN VIETQR ==================== */}
         {mode === "REGISTER" && registerStep === 2 && (
           <div className="space-y-4">
+            {isGoogleAuth && email && (
+              <div className="flex items-center gap-2.5 p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-900">
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <div className="truncate">
+                  <span>Hoàn tất đăng ký Google: </span>
+                  <strong className="font-semibold text-slate-800">{email}</strong>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 pb-1 border-b border-slate-100">
               <CreditCard className="w-4 h-4 text-indigo-600" />
               <span>Tài khoản nhận tiền VietQR (Bắt buộc)</span>
@@ -701,6 +796,11 @@ export default function AuthCard({ initialMode = "LOGIN" }) {
               type="button"
               onClick={() => {
                 setError("");
+                if (isGoogleAuth) {
+                  setIsGoogleAuth(false);
+                  setGoogleIdToken(null);
+                  sessionStorage.removeItem("google_pending_registration");
+                }
                 setRegisterStep(1);
               }}
               className="flex-1 py-2.5 px-4 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"

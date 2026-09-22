@@ -1,5 +1,6 @@
 package com.kai.billingsharing.service;
 
+import com.kai.billingsharing.dto.request.GoogleLoginRequest;
 import com.kai.billingsharing.dto.request.LoginRequest;
 import com.kai.billingsharing.dto.request.RegisterRequest;
 import com.kai.billingsharing.dto.response.AuthResponse;
@@ -73,6 +74,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "frontendUrl", "https://kaidz.xyz");
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "googleClientId", "test-client-id");
 
         sampleUser = User.builder()
                 .id(UUID.randomUUID())
@@ -301,5 +303,114 @@ class AuthServiceTest {
         AppException ex = assertThrows(AppException.class, () -> authService.resendVerificationEmail("kai@example.com"));
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatus());
         assertTrue(ex.getMessage().contains("60 giây"));
+    }
+
+    @Test
+    void testLoginWithGoogle_BlankToken_ThrowsBadRequest() {
+        GoogleLoginRequest request = GoogleLoginRequest.builder().idToken("").build();
+        AppException ex = assertThrows(AppException.class, () -> authService.loginWithGoogle(request));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+    }
+
+    @Test
+    void testLoginWithGoogle_NewUser_WithoutBankInfo_ReturnsIsNewUserTrue() {
+        AuthService spyAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "newgoogle@example.com",
+                "name", "Google User",
+                "email_verified", "true",
+                "aud", "test-client-id"
+        )).when(spyAuthService).fetchGooglePayload(anyString());
+
+        when(userRepository.findByEmail("newgoogle@example.com")).thenReturn(Optional.empty());
+
+        GoogleLoginRequest request = GoogleLoginRequest.builder()
+                .idToken("mock-id-token")
+                .build();
+
+        AuthResponse response = spyAuthService.loginWithGoogle(request);
+
+        assertNotNull(response);
+        assertTrue(response.getIsNewUser(), "Khi user mới chưa có STK ngân hàng, phải trả về isNewUser = true");
+        assertNull(response.getAccessToken(), "Chưa hoàn tất STK không được cấp accessToken");
+        assertEquals("newgoogle@example.com", response.getUser().getEmail());
+        assertEquals("Google User", response.getUser().getFullName());
+
+        verify(userRepository, never()).save(any());
+        verify(paymentInfoRepository, never()).save(any());
+    }
+
+    @Test
+    void testLoginWithGoogle_NewUser_WithBankInfo_CreatesUserAndPaymentInfo() {
+        AuthService spyAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "newgoogle_bank@example.com",
+                "name", "Google User",
+                "email_verified", "true",
+                "aud", "test-client-id"
+        )).when(spyAuthService).fetchGooglePayload(anyString());
+
+        when(userRepository.findByEmail("newgoogle_bank@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(anyString())).thenReturn("random_pass");
+
+        User savedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("newgoogle_bank@example.com")
+                .fullName("Google User")
+                .role(Role.USER)
+                .isActive(true)
+                .balance(0L)
+                .build();
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtService.generateToken(any(CustomUserDetails.class))).thenReturn("mock-jwt-token");
+        when(jwtService.getExpirationTime()).thenReturn(2592000000L);
+
+        GoogleLoginRequest request = GoogleLoginRequest.builder()
+                .idToken("mock-id-token")
+                .bankCode("MB")
+                .bankName("MBBank")
+                .accountNumber("0987654321")
+                .accountHolderName("GOOGLE USER")
+                .build();
+
+        AuthResponse response = spyAuthService.loginWithGoogle(request);
+
+        assertNotNull(response);
+        assertFalse(response.getIsNewUser());
+        assertEquals("mock-jwt-token", response.getAccessToken());
+        assertEquals("newgoogle_bank@example.com", response.getUser().getEmail());
+
+        verify(userRepository, times(1)).save(any(User.class));
+        verify(paymentInfoRepository, times(1)).save(argThat(info ->
+                "MB".equals(info.getBankCode()) &&
+                "0987654321".equals(info.getAccountNumber()) &&
+                "GOOGLE USER".equals(info.getAccountHolderName())
+        ));
+    }
+
+    @Test
+    void testLoginWithGoogle_ExistingUser_Success() {
+        AuthService spyAuthService = spy(authService);
+        doReturn(Map.of(
+                "email", "kai@example.com",
+                "name", "Kai Nguyen",
+                "email_verified", "true",
+                "aud", "test-client-id"
+        )).when(spyAuthService).fetchGooglePayload(anyString());
+
+        when(userRepository.findByEmail("kai@example.com")).thenReturn(Optional.of(sampleUser));
+        when(jwtService.generateToken(any(CustomUserDetails.class))).thenReturn("mock-jwt-token");
+        when(jwtService.getExpirationTime()).thenReturn(2592000000L);
+
+        GoogleLoginRequest request = GoogleLoginRequest.builder()
+                .idToken("mock-id-token")
+                .build();
+
+        AuthResponse response = spyAuthService.loginWithGoogle(request);
+
+        assertNotNull(response);
+        assertFalse(response.getIsNewUser());
+        assertEquals("mock-jwt-token", response.getAccessToken());
+        assertEquals("kai@example.com", response.getUser().getEmail());
     }
 }

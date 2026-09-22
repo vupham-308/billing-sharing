@@ -22,6 +22,7 @@ public class PaymentRequestResponse {
     private UserResponse creditor;
     private Long amount;
     private PaymentRequestStatus status;
+    private String identify;
     private String note;
     private String qrUrl;
     private LocalDateTime debtorConfirmedAt;

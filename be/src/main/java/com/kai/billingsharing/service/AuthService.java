@@ -327,17 +327,7 @@ public class AuthService {
             throw new AppException("Google ID Token không được để trống", HttpStatus.BAD_REQUEST);
         }
 
-        Map<String, Object> googlePayload;
-        try {
-            RestClient restClient = RestClient.create();
-            googlePayload = restClient.get()
-                    .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", request.getIdToken().trim())
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
-        } catch (Exception e) {
-            log.error("Xác thực Google ID Token thất bại: {}", e.getMessage());
-            throw new AppException("Google ID Token không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED);
-        }
+        Map<String, Object> googlePayload = fetchGooglePayload(request.getIdToken());
 
         if (googlePayload == null || googlePayload.isEmpty()) {
             throw new AppException("Không nhận được dữ liệu xác thực từ Google", HttpStatus.UNAUTHORIZED);
@@ -369,6 +359,10 @@ public class AuthService {
             name = name.trim();
         }
 
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            name = request.getFullName().trim();
+        }
+
         User user = userRepository.findByEmail(email).orElse(null);
         if (user != null) {
             if (!Boolean.TRUE.equals(user.getIsActive())) {
@@ -380,8 +374,45 @@ public class AuthService {
                 user.setFullName(name);
                 userRepository.save(user);
             }
+
+            // Nếu người dùng cũ chưa có PaymentInfo và có gửi kèm bank info thì bổ sung luôn
+            boolean hasBankInfo = request.getAccountNumber() != null && !request.getAccountNumber().isBlank()
+                    && request.getBankCode() != null && !request.getBankCode().isBlank();
+            if (hasBankInfo && paymentInfoRepository.findByUserId(user.getId()).isEmpty()) {
+                PaymentInfo paymentInfo = PaymentInfo.builder()
+                        .user(user)
+                        .bankCode(request.getBankCode().trim())
+                        .bankName(request.getBankName() != null ? request.getBankName().trim() : request.getBankCode().trim())
+                        .accountNumber(request.getAccountNumber().trim())
+                        .accountHolderName(request.getAccountHolderName() != null
+                                ? request.getAccountHolderName().trim().toUpperCase()
+                                : user.getFullName().trim().toUpperCase())
+                        .build();
+                paymentInfoRepository.save(paymentInfo);
+                log.info("Bổ sung thông tin tài khoản ngân hàng từ Google cho user đã tồn tại: {}", email);
+            }
+
             log.info("Đăng nhập bằng Google thành công cho user: {}", email);
         } else {
+            // User Google chưa tồn tại trong hệ thống
+            boolean hasBankInfo = request.getAccountNumber() != null && !request.getAccountNumber().isBlank()
+                    && request.getBankCode() != null && !request.getBankCode().isBlank();
+
+            if (!hasBankInfo) {
+                log.info("User Google chưa tồn tại trong hệ thống, chuyển sang yêu cầu nhập STK ngân hàng: {}", email);
+                return AuthResponse.builder()
+                        .isNewUser(true)
+                        .tokenType(null)
+                        .user(UserResponse.builder()
+                                .email(email)
+                                .fullName(name)
+                                .role(Role.USER)
+                                .balance(0L)
+                                .isActive(true)
+                                .build())
+                        .build();
+            }
+
             user = User.builder()
                     .email(email)
                     .fullName(name)
@@ -390,8 +421,28 @@ public class AuthService {
                     .isActive(true) // Google email đã được xác minh nên kích hoạt luôn
                     .balance(0L)
                     .build();
-            user = userRepository.save(user);
-            log.info("Tự động tạo mới tài khoản thành công từ Google cho user: {}", email);
+
+            try {
+                user = userRepository.save(user);
+                log.info("Tạo mới tài khoản thành công từ Google cho user: {}", email);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.warn("User {} đã được tạo bởi một request đồng thời, lấy lại từ DB", email);
+                user = userRepository.findByEmail(email).orElseThrow(() -> e);
+            }
+
+            if (paymentInfoRepository.findByUserId(user.getId()).isEmpty()) {
+                PaymentInfo paymentInfo = PaymentInfo.builder()
+                        .user(user)
+                        .bankCode(request.getBankCode().trim())
+                        .bankName(request.getBankName() != null ? request.getBankName().trim() : request.getBankCode().trim())
+                        .accountNumber(request.getAccountNumber().trim())
+                        .accountHolderName(request.getAccountHolderName() != null
+                                ? request.getAccountHolderName().trim().toUpperCase()
+                                : user.getFullName().trim().toUpperCase())
+                        .build();
+                paymentInfoRepository.save(paymentInfo);
+                log.info("Đã lưu thông tin tài khoản ngân hàng khởi tạo từ Google cho user: {}", email);
+            }
         }
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
@@ -415,6 +466,21 @@ public class AuthService {
                 .tokenType(token != null ? "Bearer" : null)
                 .expiresIn(token != null ? jwtService.getExpirationTime() / 1000 : null)
                 .user(userResponse)
+                .isNewUser(false)
                 .build();
     }
+
+    Map<String, Object> fetchGooglePayload(String idToken) {
+        try {
+            RestClient restClient = RestClient.create();
+            return restClient.get()
+                    .uri("https://oauth2.googleapis.com/tokeninfo?id_token={token}", idToken.trim())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.error("Xác thực Google ID Token thất bại: {}", e.getMessage());
+            throw new AppException("Google ID Token không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED);
+        }
+    }
 }
+

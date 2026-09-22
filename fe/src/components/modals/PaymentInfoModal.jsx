@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle } from "lucide-react";
+import { X, CreditCard, ShieldCheck, AlertCircle, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { bankApi } from "../../services/api";
 import BankSelect from "../common/BankSelect";
 
@@ -18,6 +18,8 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
   const [bankCode, setBankCode] = useState(currentInfo?.bankCode || "");
   const [accountNumber, setAccountNumber] = useState(currentInfo?.accountNumber || "");
   const [accountHolderName, setAccountHolderName] = useState(currentInfo?.accountHolderName || "");
+  const [sepayApiKey, setSepayApiKey] = useState(currentInfo?.sepayApiKey || "");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,6 +55,7 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
       setBankCode(currentInfo.bankCode || "");
       setAccountNumber(currentInfo.accountNumber || "");
       setAccountHolderName(currentInfo.accountHolderName || "");
+      setSepayApiKey(currentInfo.sepayApiKey || "");
     }
   }, [currentInfo, isOpen]);
 
@@ -80,6 +83,7 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
         bankName: selectedBank?.name || bankCode,
         accountNumber: accountNumber.trim(),
         accountHolderName: accountHolderName.trim().toUpperCase(),
+        sepayApiKey: sepayApiKey.trim() || null,
       });
       onClose();
     } catch (err) {
@@ -182,6 +186,37 @@ export default function PaymentInfoModal({ isOpen, onClose, currentInfo, onSave,
                 onChange={(e) => setAccountHolderName(removeVietnameseTones(e.target.value))}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                SePay API Key (Tùy chọn)
+              </label>
+              <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">
+                Tự động duyệt Webhook
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type={showApiKey ? "text" : "password"}
+                placeholder="VD: sep_live_xxxxxxxxxxxxxxxx"
+                value={sepayApiKey}
+                onChange={(e) => setSepayApiKey(e.target.value.trim())}
+                className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                title={showApiKey ? "Ẩn API Key" : "Hiện API Key"}
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              Cấu hình API Key SePay để hệ thống tự động hoàn tất khoản nợ ngay khi bạn nhận được chuyển khoản. Nếu bỏ trống, bạn vẫn duyệt thủ công bình thường.
+            </p>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">

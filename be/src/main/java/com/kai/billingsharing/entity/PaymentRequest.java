@@ -67,6 +67,9 @@ public class PaymentRequest {
     @Column(name = "status", nullable = false)
     private PaymentRequestStatus status;
 
+    @Column(name = "identify", length = 30, unique = true)
+    private String identify;
+
     @Nationalized
     @Column(name = "note", columnDefinition = "NVARCHAR(500)")
     private String note;

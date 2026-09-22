@@ -45,10 +45,12 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, UUID>,
             @Param("businessDate") LocalDate businessDate
     );
 
+    @org.springframework.transaction.annotation.Transactional
     @Modifying
     @Query("UPDATE EmailOutbox o SET o.status = 'PROCESSING', o.attemptStartedAt = :now WHERE o.id = :id AND o.status IN ('PENDING', 'RETRY_PENDING')")
     int markProcessingIfPendingOrRetry(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
+    @org.springframework.transaction.annotation.Transactional
     @Modifying
     @Query("UPDATE EmailOutbox o SET o.status = :newStatus, o.providerMessageId = :messageId, o.lastError = :lastError, o.processedAt = :processedAt, o.updatedAt = :now WHERE o.id = :id AND o.status = 'PROCESSING'")
     int updateStatusIfProcessing(
@@ -60,6 +62,7 @@ public interface EmailOutboxRepository extends JpaRepository<EmailOutbox, UUID>,
             @Param("now") LocalDateTime now
     );
 
+    @org.springframework.transaction.annotation.Transactional
     @Modifying
     @Query("UPDATE EmailOutbox o SET o.status = :newStatus, o.retryCount = :retryCount, o.nextRetryAt = :nextRetryAt, o.lastError = :lastError, o.updatedAt = :now WHERE o.id = :id AND o.status = 'PROCESSING'")
     int updateRetryIfProcessing(

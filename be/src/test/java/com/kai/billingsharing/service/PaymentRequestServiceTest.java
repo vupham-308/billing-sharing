@@ -178,4 +178,29 @@ class PaymentRequestServiceTest {
         assertTrue(qrUrl.contains("template=compact"));
         assertTrue(qrUrl.contains("holder=NGUYEN+VAN+A"));
     }
+
+    @Test
+    void testResolveDebtorName_UsesBankAccountHolderName_WhenConfigured() {
+        PaymentInfo debtorBankInfo = PaymentInfo.builder()
+                .accountHolderName("VU PHAM")
+                .bankCode("VCB")
+                .accountNumber("987654321")
+                .build();
+
+        when(paymentInfoRepository.findByUserId(debtor.getId())).thenReturn(Optional.of(debtorBankInfo));
+
+        String debtorName = paymentRequestService.resolveDebtorName(debtor);
+        assertEquals("VU PHAM", debtorName);
+
+        String note = com.kai.billingsharing.util.PaymentDescriptionUtil.buildTransferDescriptionWithIdentify("SHARE48291", debtorName);
+        assertEquals("SHARE48291 VU PHAM chuyen tien", note);
+    }
+
+    @Test
+    void testResolveDebtorName_FallbackToFullName_WhenNoBankInfo() {
+        when(paymentInfoRepository.findByUserId(debtor.getId())).thenReturn(Optional.empty());
+
+        String debtorName = paymentRequestService.resolveDebtorName(debtor);
+        assertEquals("Debtor User", debtorName);
+    }
 }

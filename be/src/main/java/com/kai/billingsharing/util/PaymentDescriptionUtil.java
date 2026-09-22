@@ -38,4 +38,26 @@ public final class PaymentDescriptionUtil {
     public static String buildPaymentDescription(String debtorName) {
         return buildTransferDescription(debtorName);
     }
+
+    /**
+     * Sinh mã định danh giao dịch dạng SHARE + 5 số ngẫu nhiên (10000 - 99999).
+     * Ví dụ: "SHARE48291"
+     */
+    public static String buildIdentify() {
+        int randomNum = java.util.concurrent.ThreadLocalRandom.current().nextInt(10000, 100000);
+        return "SHARE" + randomNum;
+    }
+
+    /**
+     * Quy chuẩn nội dung chuyển tiền kèm mã định danh SHARE:
+     * SHARE<5_so_random> <TÊN NGƯỜI NỢ> chuyen tien
+     * Ví dụ: "SHARE48291 PHAM TUAN VU chuyen tien"
+     */
+    public static String buildTransferDescriptionWithIdentify(String identify, String debtorName) {
+        String cleanName = removeDiacritics(debtorName);
+        if (identify == null || identify.isBlank()) {
+            return cleanName + " chuyen tien";
+        }
+        return identify.trim().toUpperCase() + " " + cleanName + " chuyen tien";
+    }
 }

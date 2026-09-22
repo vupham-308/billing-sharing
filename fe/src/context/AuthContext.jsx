@@ -117,9 +117,22 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithGoogle = async (idToken) => {
+  const loginWithGoogle = async (googleParam) => {
     try {
-      const res = await authApi.loginGoogle({ idToken });
+      const payload = typeof googleParam === "string" ? { idToken: googleParam } : googleParam;
+      const res = await authApi.loginGoogle(payload);
+
+      // Nếu user Google chưa tồn tại trong hệ thống, backend trả về isNewUser: true
+      if (res.isNewUser) {
+        return {
+          success: false,
+          isNewUser: true,
+          email: res.user?.email,
+          fullName: res.user?.fullName,
+          idToken: payload.idToken,
+        };
+      }
+
       const authToken = res.accessToken || res.token;
       cookieUtils.set("token", authToken, 30);
       localStorage.removeItem("token");

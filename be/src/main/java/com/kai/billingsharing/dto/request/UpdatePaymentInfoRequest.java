@@ -22,4 +22,6 @@ public class UpdatePaymentInfoRequest {
 
     @NotBlank(message = "Tên chủ tài khoản không được để trống")
     private String accountHolderName;
+
+    private String sepayApiKey;
 }

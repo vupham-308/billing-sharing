@@ -14,6 +14,7 @@ import java.util.UUID;
 public class PaymentQrResponse {
 
     private UUID requestId;
+    private String identify;
     private Long amount;
     private String bankCode;
     private String accountNumber;

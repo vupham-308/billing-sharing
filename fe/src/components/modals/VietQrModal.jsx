@@ -113,8 +113,8 @@ export default function VietQrModal({ isOpen, onClose, qrData, onConfirmPaid }) 
             {/* Description */}
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-200">
               <div className="pr-2">
-                <span className="text-slate-400 block text-[10px]">NỘI DUNG CHUYỂN TIỀN</span>
-                <span className="font-medium text-slate-800 text-xs break-all">
+                <span className="text-slate-400 block text-[10px]">NỘI DUNG CHUYỂN TIỀN (CHUẨN SHARE)</span>
+                <span className="font-medium text-slate-800 text-xs break-all font-mono">
                   {qrData.description || "Thanh toan tien bill"}
                 </span>
               </div>
@@ -125,6 +125,14 @@ export default function VietQrModal({ isOpen, onClose, qrData, onConfirmPaid }) 
               >
                 {copiedKey === "des" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
               </button>
+            </div>
+
+            {/* SePay Notice */}
+            <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Lưu ý quan trọng:</strong> Giữ nguyên nội dung chuyển khoản phía trên để hệ thống SePay tự động khớp giao dịch và duyệt hoàn tất ngay lập tức.
+              </span>
             </div>
           </div>
 
