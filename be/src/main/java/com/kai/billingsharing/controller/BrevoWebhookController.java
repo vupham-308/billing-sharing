@@ -34,14 +34,21 @@ public class BrevoWebhookController {
     @PostMapping("/brevo")
     public ResponseEntity<Map<String, String>> handleBrevoWebhook(
             @RequestHeader(value = "X-Webhook-Secret", required = false) String webhookSecretHeader,
+            @RequestParam(value = "secret", required = false) String secretParam,
+            @RequestParam(value = "token", required = false) String tokenParam,
             @RequestBody String rawBody
     ) {
         log.info("Nhận Brevo Webhook payload: {}", rawBody);
 
-        // 1. Kiểm tra secret nếu có cấu hình
+        // 1. Kiểm tra secret nếu có cấu hình trong hệ thống
         if (configuredSecret != null && !configuredSecret.isBlank()) {
-            if (webhookSecretHeader == null || !configuredSecret.equals(webhookSecretHeader.trim())) {
-                log.warn("Brevo Webhook bị từ chối: Sai webhook secret header.");
+            String trimmedSecret = configuredSecret.trim();
+            boolean matchHeader = webhookSecretHeader != null && trimmedSecret.equals(webhookSecretHeader.trim());
+            boolean matchSecretParam = secretParam != null && trimmedSecret.equals(secretParam.trim());
+            boolean matchTokenParam = tokenParam != null && trimmedSecret.equals(tokenParam.trim());
+
+            if (!matchHeader && !matchSecretParam && !matchTokenParam) {
+                log.warn("Brevo Webhook bị từ chối: Sai hoặc thiếu webhook secret (header hoặc query param).");
                 throw new AppException("Webhook secret không hợp lệ", HttpStatus.UNAUTHORIZED);
             }
         }

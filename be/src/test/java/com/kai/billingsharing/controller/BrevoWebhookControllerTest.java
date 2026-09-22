@@ -51,7 +51,7 @@ class BrevoWebhookControllerTest {
                 }
                 """.formatted(outboxId);
 
-        ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(null, payload);
+        ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(null, null, null, payload);
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("DELIVERED", outbox.getDeliveryStatus());
@@ -86,10 +86,29 @@ class BrevoWebhookControllerTest {
                 }
                 """.formatted(recipientEmail, outboxId);
 
-        webhookController.handleBrevoWebhook(null, payload);
+        webhookController.handleBrevoWebhook(null, null, null, payload);
 
         assertEquals("BOUNCED", outbox.getDeliveryStatus());
         assertTrue(user.getIsEmailBounced(), "User.isEmailBounced must be set to true on hard bounce");
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void testBrevoWebhook_SecretValidation_RejectsInvalidSecret() {
+        org.springframework.test.util.ReflectionTestUtils.setField(webhookController, "configuredSecret", "mySecret123");
+
+        com.kai.billingsharing.exception.AppException ex = assertThrows(
+                com.kai.billingsharing.exception.AppException.class,
+                () -> webhookController.handleBrevoWebhook("wrongSecret", null, null, "{}")
+        );
+        assertEquals(401, ex.getStatus().value());
+    }
+
+    @Test
+    void testBrevoWebhook_SecretInQueryParam_AcceptsValidSecret() {
+        org.springframework.test.util.ReflectionTestUtils.setField(webhookController, "configuredSecret", "mySecret123");
+
+        ResponseEntity<Map<String, String>> response = webhookController.handleBrevoWebhook(null, "mySecret123", null, "{}");
+        assertEquals(200, response.getStatusCode().value());
     }
 }
