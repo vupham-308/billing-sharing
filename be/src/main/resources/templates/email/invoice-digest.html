@@ -86,6 +86,11 @@
 </p><p>Xin chào <strong>{{userName}}
 </strong>,</p>
         <p>Bạn có tên trong danh sách chia tiền của <strong>{{invoiceCount}} hóa đơn</strong> mới do người khác chi trả hôm qua.</p>
+
+        <div class="section-title" style="font-size:16px;font-weight:bold;color:#0f172a;margin:24px 0 12px;">
+          📋 Chi Tiết Hóa Đơn Phát Sinh Ngày {{date}}
+        </div>
+        {{invoiceRowsHtml}}
         
         <div class="stats-card" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin:24px 0;">
           <div class="stat-row" style="padding:12px 0;border-bottom:1px solid #e2e8f0;">

@@ -39,7 +39,7 @@ class NewInvoiceNotificationServiceTest {
         var digest = digest();
         when(reader.read(date)).thenReturn(List.of(digest));
         when(emailOutboxRepository.existsByBusinessKey(anyString())).thenReturn(false);
-        when(emailService.buildInvoiceDigestHtml(anyString(), anyString(), anyInt(), anyLong(), anyLong()))
+        when(emailService.buildInvoiceDigestHtml(anyString(), anyString(), anyInt(), anyLong(), anyLong(), any()))
                 .thenReturn("<p>HTML</p>");
 
         service.sendYesterdayInvoices();

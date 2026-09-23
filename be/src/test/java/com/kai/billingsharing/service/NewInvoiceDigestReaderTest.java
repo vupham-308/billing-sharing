@@ -44,6 +44,7 @@ class NewInvoiceDigestReaderTest {
         assertEquals(2, digest.invoiceCount());
         assertEquals(300, digest.totalDebt());
         assertEquals(700, digest.totalCredit());
+        assertEquals(3, digest.items().size());
         // Payer-only users without a sharing row are not notification recipients.
         assertTrue(digests.stream().noneMatch(d -> d.userId().equals(payer.getId())));
     }

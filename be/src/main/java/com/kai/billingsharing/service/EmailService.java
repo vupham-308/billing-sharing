@@ -125,7 +125,7 @@ public class EmailService {
 
     public void sendNewInvoiceDigest(NewInvoiceDigestReader.Digest digest) {
         String dateStr = digest.date().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-        String html = buildInvoiceDigestHtml(digest.name(), dateStr, digest.invoiceCount(), digest.totalDebt(), digest.totalCredit());
+        String html = buildInvoiceDigestHtml(digest.name(), dateStr, digest.invoiceCount(), digest.totalDebt(), digest.totalCredit(), digest.items());
         sendBrevoEmail(digest.email(), digest.name(), "Tổng hợp hóa đơn mới ngày " + dateStr + " - Billing Sharing", html);
     }
 
@@ -176,12 +176,64 @@ public class EmailService {
         return base.endsWith("/billing-sharing") ? base : base + "/billing-sharing";
     }
 
+    private static final java.time.format.DateTimeFormatter TIME_DATE_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
+
     public String buildInvoiceDigestHtml(String userName, String dateStr, int invoiceCount, long totalDebt, long totalCredit) {
+        return buildInvoiceDigestHtml(userName, dateStr, invoiceCount, totalDebt, totalCredit, List.of());
+    }
+
+    public String buildInvoiceDigestHtml(String userName, String dateStr, int invoiceCount, long totalDebt, long totalCredit, List<NewInvoiceDigestReader.InvoiceItem> items) {
         String template = loadTemplate("templates/email/invoice-digest.html");
+
+        StringBuilder rowsHtml = new StringBuilder();
+        if (items != null && !items.isEmpty()) {
+            for (var item : items) {
+                String itemTime = item.createdAt() != null ? item.createdAt().format(TIME_DATE_FORMATTER) : dateStr;
+                String statusBadge = item.isPaid()
+                        ? "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#ecfdf5;color:#047857;margin-left:6px;border:1px solid #a7f3d0;\">Đã thanh toán</span>"
+                        : "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#fff1f2;color:#e11d48;margin-left:6px;border:1px solid #fecdd3;\">Chưa thanh toán</span>";
+
+                rowsHtml.append("<div style=\"background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin:12px 0;box-shadow:0 1px 2px 0 rgba(0,0,0,0.03);\">")
+                        .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:8px;\">")
+                        .append("<tr>")
+                        .append("<td align=\"left\" style=\"vertical-align:middle;\">")
+                        .append("<span style=\"font-size:15px;font-weight:bold;color:#0f172a;\">").append(escape(item.title())).append("</span>")
+                        .append(statusBadge)
+                        .append("</td>")
+                        .append("<td align=\"right\" style=\"vertical-align:top;\">")
+                        .append("<span style=\"font-size:11px;color:#64748b;display:block;\">Phần của bạn</span>")
+                        .append("<span style=\"font-size:18px;font-weight:bold;color:#be123c;\">-").append(money(item.userShareAmount())).append(" VND</span>")
+                        .append("</td>")
+                        .append("</tr>")
+                        .append("</table>")
+                        .append("<div style=\"font-size:13px;color:#64748b;margin-bottom:12px;line-height:1.5;\">")
+                        .append("🕒 ").append(escape(itemTime))
+                        .append(" &nbsp;•&nbsp; Người trả: <strong style=\"color:#0f172a;\">").append(escape(item.payerName())).append("</strong> (").append(money(item.totalAmount())).append(" VND)")
+                        .append(" &nbsp;•&nbsp; Nhóm: <strong style=\"color:#0f172a;\">").append(escape(item.groupName())).append("</strong>")
+                        .append("</div>")
+                        .append("<div style=\"background:#f8fafc;border:1px solid #f1f5f9;border-radius:8px;padding:10px 14px;font-size:13px;color:#334155;\">")
+                        .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">")
+                        .append("<tr>")
+                        .append("<td style=\"color:#64748b;\">Tổng hóa đơn:</td>")
+                        .append("<td align=\"right\" style=\"font-weight:600;color:#0f172a;\">").append(money(item.totalAmount())).append(" VND</td>")
+                        .append("</tr>")
+                        .append("<tr>")
+                        .append("<td style=\"color:#64748b;padding-top:4px;\">Số tiền bạn cần trả:</td>")
+                        .append("<td align=\"right\" style=\"font-weight:bold;color:#be123c;padding-top:4px;\">").append(money(item.userShareAmount())).append(" VND</td>")
+                        .append("</tr>")
+                        .append("</table>")
+                        .append("</div>")
+                        .append("</div>");
+            }
+        } else {
+            rowsHtml.append("<p style=\"color:#64748b;font-size:13px;\">Không có chi tiết hóa đơn lẻ.</p>");
+        }
+
         return template
                 .replace("{{userName}}", userName != null && !userName.isBlank() ? escape(userName) : "bạn")
                 .replace("{{date}}", escape(dateStr))
                 .replace("{{invoiceCount}}", String.valueOf(invoiceCount))
+                .replace("{{invoiceRowsHtml}}", rowsHtml.toString())
                 .replace("{{totalDebt}}", money(totalDebt))
                 .replace("{{totalCredit}}", money(totalCredit))
                 .replace("{{dashboardUrl}}", escape(getDashboardUrl()));

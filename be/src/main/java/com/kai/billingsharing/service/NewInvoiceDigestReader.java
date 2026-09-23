@@ -14,8 +14,18 @@ import java.util.*;
 public class NewInvoiceDigestReader {
     private final TransactionSharingMemberRepository sharingRepository;
 
+    public record InvoiceItem(UUID transactionId, String title, String groupName, String payerName,
+                              long totalAmount, long userShareAmount, java.time.LocalDateTime createdAt,
+                              boolean isPaid) {}
+
     public record Digest(UUID userId, String email, String name, LocalDate date,
-                         int invoiceCount, long totalDebt, long totalCredit) {}
+                         int invoiceCount, long totalDebt, long totalCredit,
+                         List<InvoiceItem> items) {
+        public Digest(UUID userId, String email, String name, LocalDate date,
+                      int invoiceCount, long totalDebt, long totalCredit) {
+            this(userId, email, name, date, invoiceCount, totalDebt, totalCredit, List.of());
+        }
+    }
 
     @Transactional(readOnly = true)
     public List<Digest> read(LocalDate date) {
@@ -39,8 +49,21 @@ public class NewInvoiceDigestReader {
         byUser.forEach((id, shares) -> {
             var user = shares.get(0).getUser();
             int count = (int) shares.stream().map(s -> s.getTransaction().getId()).distinct().count();
+            List<InvoiceItem> items = shares.stream().map(s -> {
+                var tx = s.getTransaction();
+                return new InvoiceItem(
+                        tx.getId(),
+                        tx.getTitle() != null ? tx.getTitle() : "Hóa đơn",
+                        tx.getGroup() != null ? tx.getGroup().getName() : "Nhóm chi tiêu",
+                        tx.getPayer() != null ? tx.getPayer().getFullName() : "Thành viên",
+                        tx.getTotalAmount() != null ? tx.getTotalAmount() : 0L,
+                        s.getShareAmount() != null ? s.getShareAmount() : 0L,
+                        tx.getCreatedAt(),
+                        Boolean.TRUE.equals(s.getIsPaid())
+                );
+            }).toList();
             result.add(new Digest(id, user.getEmail(), user.getFullName(), date, count,
-                    debts.getOrDefault(id, 0L), credits.getOrDefault(id, 0L)));
+                    debts.getOrDefault(id, 0L), credits.getOrDefault(id, 0L), items));
         });
         return result;
     }

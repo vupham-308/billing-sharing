@@ -53,7 +53,8 @@ public class NewInvoiceNotificationService {
                 dateStr,
                 digest.invoiceCount(),
                 digest.totalDebt(),
-                digest.totalCredit()
+                digest.totalCredit(),
+                digest.items()
         );
 
         emailOutboxService.recordOutbox(
