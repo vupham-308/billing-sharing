@@ -65,8 +65,8 @@ export default function GroupList({
         ))}
       </div>
 
-      {/* Grid of group cards: 1 col on mobile, 2 cols on tablet/desktop for wider, readable cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Grid of group cards: full width across the layout */}
+      <div className="grid grid-cols-1 gap-4">
         {groups.map((group) => {
           const isSelected = selectedGroupId === group.id;
           const userBalance = group.myBalance ?? 0;
