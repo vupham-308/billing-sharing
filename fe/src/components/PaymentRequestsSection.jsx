@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowUpRight, ArrowDownLeft, QrCode, Check, X, Clock, AlertCircle, CheckCircle2 } from "lucide-react";
 import { formatVND, formatDate } from "../utils/formatters";
 
@@ -10,14 +11,9 @@ export default function PaymentRequestsSection({
   onRejectCredit,
 }) {
   const [activeTab, setActiveTab] = useState("DEBTS"); // "DEBTS" or "CREDITS"
-  const [expandedId, setExpandedId] = useState(null);
 
   const pendingDebtsCount = debts.filter((d) => d.status === "PENDING").length;
   const waitingApprovalCreditsCount = credits.filter((c) => c.status === "WAITING_APPROVE").length;
-
-  const toggleExpand = (id) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  };
 
   return (
     <section className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
@@ -67,7 +63,6 @@ export default function PaymentRequestsSection({
             const isPending = item.status === "PENDING";
             const isWaiting = item.status === "WAITING_APPROVE";
             const hasNetting = item.breakdown && item.breakdown.nettedCredit > 0;
-            const isExpanded = expandedId === item.id;
 
             return (
               <div
@@ -83,11 +78,6 @@ export default function PaymentRequestsSection({
                     {item.transactionTitle && (
                       <span className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                         {item.transactionTitle}
-                      </span>
-                    )}
-                    {hasNetting && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md mt-1">
-                        ✨ Đã cấn trừ 2 chiều
                       </span>
                     )}
                   </div>
@@ -108,44 +98,15 @@ export default function PaymentRequestsSection({
                   </div>
                 </div>
 
-                {hasNetting && (
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(item.id)}
-                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1"
-                    >
-                      <span>{isExpanded ? "Thu gọn giải trình" : "Xem chi tiết cấn trừ nợ"}</span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-2 p-2.5 rounded-lg bg-sky-50/60 border border-sky-200 text-xs space-y-2">
-                        <div className="font-medium text-sky-900 flex items-center justify-between">
-                          <span>Chi tiết bù trừ:</span>
-                          <span className="font-mono text-[11px] text-slate-600">{item.breakdown.formula}</span>
-                        </div>
-                        <div className="space-y-1 text-[11px]">
-                          <div className="text-rose-700 font-medium">
-                            • Khoản bạn nợ ({item.toUserName}): {formatVND(item.breakdown.grossDebt)}
-                          </div>
-                          {item.breakdown.debtItems?.map((d, idx) => (
-                            <div key={idx} className="pl-3 text-slate-600">
-                              + {d.transactionTitle}: {formatVND(d.amount)}
-                            </div>
-                          ))}
-                          <div className="text-emerald-700 font-medium pt-1">
-                            • {item.toUserName} nợ lại bạn (khấu trừ): -{formatVND(item.breakdown.nettedCredit)}
-                          </div>
-                          {item.breakdown.nettedItems?.map((n, idx) => (
-                            <div key={idx} className="pl-3 text-slate-600">
-                              - {n.transactionTitle}: {formatVND(n.amount)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="mt-1.5">
+                  <Link
+                    to={`/billing-sharing/payment-requests/${item.id}`}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-0.5 hover:underline"
+                  >
+                    <span>Xem chi tiết cấn trừ nợ</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </Link>
+                </div>
 
                 <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2 text-xs">
                   {isPending ? (
@@ -188,7 +149,6 @@ export default function PaymentRequestsSection({
             const isWaiting = item.status === "WAITING_APPROVE";
             const isPending = item.status === "PENDING";
             const hasNetting = item.breakdown && item.breakdown.nettedCredit > 0;
-            const isExpanded = expandedId === item.id;
 
             return (
               <div
@@ -204,11 +164,6 @@ export default function PaymentRequestsSection({
                     {item.transactionTitle && (
                       <span className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                         {item.transactionTitle}
-                      </span>
-                    )}
-                    {hasNetting && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md mt-1">
-                        ✨ Đã cấn trừ 2 chiều
                       </span>
                     )}
                   </div>
@@ -229,44 +184,15 @@ export default function PaymentRequestsSection({
                   </div>
                 </div>
 
-                {hasNetting && (
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(item.id)}
-                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-1"
-                    >
-                      <span>{isExpanded ? "Thu gọn giải trình" : "Xem chi tiết cấn trừ nợ"}</span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-2 p-2.5 rounded-lg bg-sky-50/60 border border-sky-200 text-xs space-y-2">
-                        <div className="font-medium text-sky-900 flex items-center justify-between">
-                          <span>Chi tiết bù trừ:</span>
-                          <span className="font-mono text-[11px] text-slate-600">{item.breakdown.formula}</span>
-                        </div>
-                        <div className="space-y-1 text-[11px]">
-                          <div className="text-emerald-700 font-medium">
-                            • {item.fromUserName} nợ bạn: {formatVND(item.breakdown.grossDebt)}
-                          </div>
-                          {item.breakdown.debtItems?.map((d, idx) => (
-                            <div key={idx} className="pl-3 text-slate-600">
-                              + {d.transactionTitle}: {formatVND(d.amount)}
-                            </div>
-                          ))}
-                          <div className="text-rose-700 font-medium pt-1">
-                            • Bạn nợ lại {item.fromUserName} (khấu trừ): -{formatVND(item.breakdown.nettedCredit)}
-                          </div>
-                          {item.breakdown.nettedItems?.map((n, idx) => (
-                            <div key={idx} className="pl-3 text-slate-600">
-                              - {n.transactionTitle}: {formatVND(n.amount)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="mt-1.5">
+                  <Link
+                    to={`/billing-sharing/payment-requests/${item.id}`}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center gap-0.5 hover:underline"
+                  >
+                    <span>Xem chi tiết cấn trừ nợ</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </Link>
+                </div>
 
                 <div className="mt-2.5 pt-2 border-t border-slate-200/60 text-xs">
                   {isWaiting ? (

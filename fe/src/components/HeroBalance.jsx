@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, Users, Wallet, FileText } from "lucide-react";
+import { Plus, Users, Wallet, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatVND } from "../utils/formatters";
 
@@ -61,11 +61,10 @@ export default function HeroBalance({
         </div>
       </div>
 
-      {/* 3 Metric cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-6">
-        {/* Net Balance */}
+      {/* Net Balance Card */}
+      <div className="pt-6">
         <div
-          className={`relative overflow-hidden rounded-xl p-5 border ${
+          className={`relative overflow-hidden rounded-xl p-5 border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
             isZero
               ? "bg-slate-50/70 border-slate-200"
               : isPositive
@@ -73,59 +72,25 @@ export default function HeroBalance({
               : "bg-rose-50/50 border-rose-200/80"
           }`}
         >
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-            <span>Số dư</span>
+          <div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+              <span>Số dư</span>
+            </div>
+            <div
+              className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
+                isZero ? "text-slate-700" : isPositive ? "text-emerald-700" : "text-rose-700"
+              }`}
+            >
+              {isPositive ? "+" : ""}
+              {formatVND(netBalance)}
+            </div>
           </div>
-          <div
-            className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
-              isZero ? "text-slate-700" : isPositive ? "text-emerald-700" : "text-rose-700"
-            }`}
-          >
-            {isPositive ? "+" : ""}
-            {formatVND(netBalance)}
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 sm:text-right max-w-sm">
             {isPositive
               ? "Bạn đã ứng tiền nhiều hơn phần của mình"
               : isZero
               ? "Bạn và mọi người không còn công nợ tồn đọng"
               : "Tổng số tiền bạn cần trả cho các thành viên khác"}
-          </p>
-        </div>
-
-        {/* You are owed */}
-        <div className="rounded-xl p-5 bg-white border border-slate-200/80 hover:border-slate-300 transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Bạn đang được nợ
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <ArrowDownLeft className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            {formatVND(totalOwedToYou)}
-          </div>
-          <p className="text-xs text-emerald-600 font-medium mt-1">
-            Khoản tiền người khác sẽ chuyển lại cho bạn
-          </p>
-        </div>
-
-        {/* You owe */}
-        <div className="rounded-xl p-5 bg-white border border-slate-200/80 hover:border-slate-300 transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Bạn cần thanh toán
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            {formatVND(totalYouOwe)}
-          </div>
-          <p className="text-xs text-rose-600 font-medium mt-1">
-            Các khoản bạn cần chuyển khoản thanh toán
           </p>
         </div>
       </div>

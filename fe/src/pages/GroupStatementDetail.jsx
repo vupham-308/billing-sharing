@@ -20,6 +20,7 @@ import {
 import { statementApi, groupApi, paymentRequestApi } from "../services/api";
 import { formatVND } from "../utils/formatters";
 import { useAuth } from "../context/AuthContext";
+import Navbar from "../components/Navbar";
 
 export const formatPeriodTitle = (startDate, endDate) => {
   if (!startDate || !endDate) return null;
@@ -143,8 +144,9 @@ export default function GroupStatementDetail() {
   const totalPeriodExpense = transactions.reduce((sum, tx) => sum + (tx.totalAmount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <Navbar />
+      <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Navigation Breadcrumb & Group Switcher */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link
@@ -820,8 +822,8 @@ export default function GroupStatementDetail() {
                         const debtTitle = item.periodTitle || periodDebtTitle || item.transactionTitle || "Kỳ sao kê";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-800 max-w-[200px] truncate">
-                              <p className="truncate font-semibold text-slate-900" title={item.transactionTitle ? `Giao dịch gốc: ${item.transactionTitle}` : debtTitle}>
+                            <td className="px-4 py-3 font-medium text-slate-800 min-w-[180px] max-w-[280px]">
+                              <p className="font-semibold text-slate-900" title={item.transactionTitle ? `Giao dịch gốc: ${item.transactionTitle}` : debtTitle}>
                                 {debtTitle}
                               </p>
                               <span className={`inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${
@@ -846,7 +848,7 @@ export default function GroupStatementDetail() {
                                   const targetName = br.transferredDebtorName || "thành viên";
                                   const noteText = `Đã cấn trừ khoản nợ của ${targetName}: -${formatVND(br.offsetCreditAmount)}`;
                                   return (
-                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 w-fit" title={br.formula || noteText}>
+                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 whitespace-normal break-words leading-tight max-w-fit" title={br.formula || noteText}>
                                       {noteText}
                                     </span>
                                   );
@@ -854,7 +856,7 @@ export default function GroupStatementDetail() {
 
                                 if (br.nettingDetailNote) {
                                   return (
-                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 w-fit" title={br.formula || br.nettingDetailNote}>
+                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 whitespace-normal break-words leading-tight max-w-fit" title={br.formula || br.nettingDetailNote}>
                                       {br.nettingDetailNote}
                                     </span>
                                   );

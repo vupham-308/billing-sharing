@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import {
   ArrowLeft,
   ExternalLink,
@@ -346,6 +347,7 @@ export default function SepayGuide() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
+      <Navbar />
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">

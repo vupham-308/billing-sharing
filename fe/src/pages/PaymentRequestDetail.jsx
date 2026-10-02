@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { paymentRequestApi } from "../services/api";
+import Navbar from "../components/Navbar";
 
 export default function PaymentRequestDetail() {
   const { id } = useParams();
@@ -138,8 +139,9 @@ export default function PaymentRequestDetail() {
   const isCompleted = request.status === "COMPLETED";
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <Navbar />
+      <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Navigation Breadcrumb & Group Context */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link

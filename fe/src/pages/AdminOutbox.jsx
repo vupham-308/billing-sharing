@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { adminOutboxApi } from "../services/api";
+import Navbar from "../components/Navbar";
 
 const STATUS_BADGES = {
   PENDING: { bg: "bg-slate-100 text-slate-700 border-slate-200", label: "Chờ gửi", icon: Clock },
@@ -117,8 +118,9 @@ export default function AdminOutbox() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <Navbar />
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
           <div className="flex items-center gap-3">
