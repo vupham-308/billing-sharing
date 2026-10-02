@@ -287,6 +287,17 @@ public class EmailService {
                 .replace("{{statementWebUrl}}", escape(statementWebUrl));
     }
 
+    public String buildCreditorStatementHtml(String userName, String groupName, String periodTitle, long totalToReceive, String incomingRowsHtml, String statementWebUrl) {
+        String template = loadTemplate("templates/email/creditor-statement.html");
+        return template
+                .replace("{{userName}}", userName != null && !userName.isBlank() ? escape(userName) : "bạn")
+                .replace("{{groupName}}", escape(groupName))
+                .replace("{{periodTitle}}", escape(periodTitle))
+                .replace("{{totalToReceive}}", money(totalToReceive))
+                .replace("{{incomingRowsHtml}}", incomingRowsHtml != null ? incomingRowsHtml : "<p style=\"color:#64748b;\">Không có khoản thanh toán nào đang chờ bạn nhận.</p>")
+                .replace("{{statementWebUrl}}", escape(statementWebUrl));
+    }
+
     public String buildDebtReminderHtml(String userName, long totalDebt, int debtCount, String debtRowsHtml) {
         String template = loadTemplate("templates/email/debt-reminder.html");
         return template

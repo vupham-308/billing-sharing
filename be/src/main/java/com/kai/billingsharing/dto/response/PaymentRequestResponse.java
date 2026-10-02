@@ -20,6 +20,7 @@ public class PaymentRequestResponse {
     private String groupName;
     private UUID transactionId;
     private String transactionTitle;
+    private String periodTitle;
     private UserResponse debtor;
     private UserResponse creditor;
     private Long amount;

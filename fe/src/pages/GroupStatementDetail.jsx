@@ -21,6 +21,19 @@ import { statementApi, groupApi, paymentRequestApi } from "../services/api";
 import { formatVND } from "../utils/formatters";
 import { useAuth } from "../context/AuthContext";
 
+export const formatPeriodTitle = (startDate, endDate) => {
+  if (!startDate || !endDate) return null;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const startStr = `${start.getDate()}/${start.getMonth() + 1}`;
+  const endStr = `${end.getDate()}/${end.getMonth() + 1}`;
+  if (start.getFullYear() !== end.getFullYear()) {
+    return `Kỳ sao kê ${startStr}/${start.getFullYear()} - ${endStr}/${end.getFullYear()}`;
+  }
+  return `Kỳ sao kê ${startStr} - ${endStr}`;
+};
+
 export default function GroupStatementDetail() {
   const { groupId } = useParams();
   const navigate = useNavigate();
@@ -124,6 +137,7 @@ export default function GroupStatementDetail() {
   const userOwesOthers = userSummary.userOwesOthers ?? 0;
   const userGrossDebt = userTotalShare;
   const userGrossCredit = userPaidForOthers;
+  const periodDebtTitle = formatPeriodTitle(statementData?.startDate, statementData?.endDate);
 
   // Tính tổng các khoản chi tiêu trong kỳ
   const totalPeriodExpense = transactions.reduce((sum, tx) => sum + (tx.totalAmount || 0), 0);
@@ -376,6 +390,9 @@ export default function GroupStatementDetail() {
                             <div>
                               <span className="text-xs text-slate-500 block">Chuyển đến:</span>
                               <span className="text-sm font-bold text-slate-900">{req.creditorName}</span>
+                              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-md inline-block mt-1">
+                                {req.periodTitle || periodDebtTitle || req.transactionTitle || "Kỳ sao kê"}
+                              </span>
                             </div>
                             <div className="text-right">
                               <span className="text-xs text-slate-500 block">Số tiền:</span>
@@ -384,6 +401,32 @@ export default function GroupStatementDetail() {
                               </span>
                             </div>
                           </div>
+
+                          {/* Chi tiết cấn trừ đa phương nếu có */}
+                          {(() => {
+                            let br = req.breakdown;
+                            if (typeof br === "string") {
+                              try { br = JSON.parse(br); } catch (e) { br = null; }
+                            }
+                            if (!br) return null;
+                            if (br.transferredDebtAmount > 0 || br.offsetCreditAmount > 0 || br.nettingDetailNote) {
+                              return (
+                                <div className="p-2.5 bg-indigo-50/70 rounded-lg border border-indigo-100 text-[11px] space-y-1">
+                                  <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
+                                    <span>Cấn trừ đa phương:</span>
+                                  </div>
+                                  {br.nettingDetailNote && (
+                                    <p className="text-indigo-800 font-medium">{br.nettingDetailNote}</p>
+                                  )}
+                                  {br.formula && (
+                                    <p className="text-slate-600 font-mono text-[10px]">{br.formula}</p>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           {/* Thông tin chuyển khoản */}
                           {req.accountNumber ? (
@@ -548,7 +591,14 @@ export default function GroupStatementDetail() {
                           <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
                             {/* Khoản chi tiêu */}
                             <td className="px-4 py-3">
-                              <p className="font-bold text-slate-900">{tx.title}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-slate-900">{tx.title}</p>
+                                {(tx.isAdjustment || tx.title?.includes("[Cấn trừ sao kê]")) && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                                    Điều chỉnh cấn trừ
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[11px] text-slate-400">
                                 {new Date(tx.createdAt).toLocaleDateString("vi-VN", {
                                   hour: "2-digit",
@@ -655,7 +705,7 @@ export default function GroupStatementDetail() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-3">Khoản chi tiêu</th>
+                      <th className="px-4 py-3">Khoản nợ</th>
                       <th className="px-4 py-3">Người nợ</th>
                       <th className="px-4 py-3">Người nhận</th>
                       <th className="px-4 py-3">Số tiền</th>
@@ -673,15 +723,32 @@ export default function GroupStatementDetail() {
                     ) : (
                       snapshotItems.map((item, idx) => {
                         const isPending = item.status === "PENDING";
+                        const debtTitle = item.periodTitle || periodDebtTitle || item.transactionTitle || "Kỳ sao kê";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-800 max-w-[180px] truncate">
-                              <p className="truncate" title={item.transactionTitle}>{item.transactionTitle}</p>
+                            <td className="px-4 py-3 font-medium text-slate-800 max-w-[200px] truncate">
+                              <p className="truncate font-semibold text-slate-900" title={item.transactionTitle ? `Giao dịch gốc: ${item.transactionTitle}` : debtTitle}>
+                                {debtTitle}
+                              </p>
                               <span className={`inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded-sm ${
                                 isPending ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-blue-50 text-blue-700 border border-blue-200"
                               }`}>
                                 {item.status}
                               </span>
+                              {(() => {
+                                let br = item.breakdown;
+                                if (typeof br === "string") {
+                                  try { br = JSON.parse(br); } catch (e) { br = null; }
+                                }
+                                if (br?.nettingDetailNote) {
+                                  return (
+                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 w-fit" title={br.formula || br.nettingDetailNote}>
+                                      {br.nettingDetailNote}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </td>
                             <td className="px-4 py-3 font-semibold text-slate-700">
                               {item.debtorName}

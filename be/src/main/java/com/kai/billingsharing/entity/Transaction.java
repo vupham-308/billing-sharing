@@ -40,6 +40,16 @@ public class Transaction {
     @JoinColumn(name = "group_id", nullable = false)
     private Group group;
 
+    @Builder.Default
+    @Column(name = "is_adjustment")
+    private Boolean isAdjustment = false;
+
+    @Column(name = "adjustment_type", length = 50)
+    private String adjustmentType;
+
+    @Column(name = "related_payment_request_id")
+    private UUID relatedPaymentRequestId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

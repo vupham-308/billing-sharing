@@ -33,6 +33,9 @@ class PaymentRequestServiceTest {
     private TransactionSharingMemberRepository sharingMemberRepository;
 
     @Mock
+    private TransactionRepository transactionRepository;
+
+    @Mock
     private GroupMemberRepository groupMemberRepository;
 
     @Mock

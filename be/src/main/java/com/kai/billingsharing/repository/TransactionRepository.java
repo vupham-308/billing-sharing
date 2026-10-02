@@ -60,4 +60,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("isPaid") Boolean isPaid,
             Pageable pageable
     );
+
+    List<Transaction> findByRelatedPaymentRequestId(UUID relatedPaymentRequestId);
 }

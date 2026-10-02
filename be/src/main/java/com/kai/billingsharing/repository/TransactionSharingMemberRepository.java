@@ -17,6 +17,8 @@ public interface TransactionSharingMemberRepository extends JpaRepository<Transa
 
     List<TransactionSharingMember> findByTransactionId(UUID transactionId);
 
+    void deleteByTransactionId(UUID transactionId);
+
     List<TransactionSharingMember> findByTransactionIdIn(Collection<UUID> transactionIds);
 
     Optional<TransactionSharingMember> findByTransactionIdAndUserId(UUID transactionId, UUID userId);

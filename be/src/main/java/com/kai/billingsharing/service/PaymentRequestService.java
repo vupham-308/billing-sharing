@@ -34,6 +34,7 @@ public class PaymentRequestService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final PaymentInfoRepository paymentInfoRepository;
     private final TransactionSharingMemberRepository sharingMemberRepository;
+    private final TransactionRepository transactionRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
     private final EmailOutboxService emailOutboxService;
@@ -70,6 +71,27 @@ public class PaymentRequestService {
         }
     }
 
+    public String resolveTransactionTitle(PaymentRequest pr, PaymentRequestBreakdownResponse breakdown) {
+        if (breakdown != null && breakdown.getPeriodTitle() != null && !breakdown.getPeriodTitle().isBlank()) {
+            return breakdown.getPeriodTitle();
+        }
+        if (pr.getTransaction() != null && (breakdown == null || breakdown.getDebtItems() == null || breakdown.getDebtItems().isEmpty())) {
+            return pr.getTransaction().getTitle();
+        }
+        if (breakdown != null && breakdown.getDebtItems() != null && !breakdown.getDebtItems().isEmpty()) {
+            return breakdown.getDebtItems().stream().map(PaymentRequestItemResponse::getTransactionTitle).collect(Collectors.joining(", "));
+        }
+        if (pr.getTransaction() != null) {
+            return pr.getTransaction().getTitle();
+        }
+        return pr.getGroup() != null ? "Tất toán nhóm " + pr.getGroup().getName() : "Tất toán công nợ";
+    }
+
+    public String resolveTransactionTitle(PaymentRequest pr) {
+        PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(pr.getBreakdownJson());
+        return resolveTransactionTitle(pr, breakdown);
+    }
+
     @Transactional
     public PaymentQrResponse getPaymentQr(UUID requestId, CustomUserDetails currentUser) {
         PaymentRequest request = paymentRequestRepository.findById(requestId)
@@ -102,11 +124,7 @@ public class PaymentRequestService {
         String qrUrl = paymentInfo.buildQrUrl(request.getAmount(), request.getNote());
 
         PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(request.getBreakdownJson());
-        String transactionTitle = request.getTransaction() != null
-                ? request.getTransaction().getTitle()
-                : (breakdown != null && breakdown.getDebtItems() != null && !breakdown.getDebtItems().isEmpty()
-                    ? breakdown.getDebtItems().stream().map(PaymentRequestItemResponse::getTransactionTitle).collect(Collectors.joining(", "))
-                    : (request.getGroup() != null ? "Tất toán nhóm " + request.getGroup().getName() : "Tất toán công nợ"));
+        String transactionTitle = resolveTransactionTitle(request, breakdown);
         String groupName = request.getGroup() != null
                 ? request.getGroup().getName()
                 : (request.getTransaction() != null ? request.getTransaction().getGroup().getName() : "");
@@ -153,7 +171,8 @@ public class PaymentRequestService {
         try {
             String businessKey = "PAYMENT_CONFIRMED:" + saved.getId() + ":" + nextCount;
             String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + saved.getId();
-            String message = "Người nợ (" + saved.getDebtor().getFullName() + ") vừa bấm xác nhận đã chuyển khoản cho khoản nợ \"" + saved.getTransaction().getTitle() + "\". Vui lòng kiểm tra tài khoản ngân hàng và duyệt nhận tiền.";
+            String txTitle = resolveTransactionTitle(saved);
+            String message = "Người nợ (" + saved.getDebtor().getFullName() + ") vừa bấm xác nhận đã chuyển khoản cho khoản nợ \"" + txTitle + "\". Vui lòng kiểm tra tài khoản ngân hàng và duyệt nhận tiền.";
             String html = emailService.buildPaymentNotificationHtml(
                     "Xác Nhận Đã Chuyển Tiền",
                     saved.getCreditor().getFullName(),
@@ -168,7 +187,7 @@ public class PaymentRequestService {
                     EmailType.PAYMENT_CONFIRMED,
                     saved.getCreditor().getEmail(),
                     saved.getCreditor().getFullName(),
-                    "Xác nhận chuyển tiền: " + saved.getTransaction().getTitle(),
+                    "Xác nhận chuyển tiền: " + txTitle,
                     html,
                     null,
                     businessKey,
@@ -243,11 +262,20 @@ public class PaymentRequestService {
                     });
         }
 
+        // Luôn dọn dẹp các giao dịch điều chỉnh trung gian đang chờ request này hoàn tất
+        cleanUpInterimAdjustments(saved.getId());
+
+        // Xử lý cấn trừ đa phương & giao dịch điều chỉnh trung gian
+        PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(saved.getBreakdownJson());
+        if (breakdown != null) {
+            handleMultilateralNettingCompletion(saved, breakdown, now);
+        }
+
         // Ghi nhận EmailOutbox báo cho người nợ (Debtor)
         try {
             String businessKey = "PAYMENT_APPROVED:" + saved.getId() + ":" + saved.getVersion();
             String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + saved.getId();
-            String txTitle = saved.getTransaction() != null ? saved.getTransaction().getTitle() : "Tất toán công nợ";
+            String txTitle = resolveTransactionTitle(saved);
             String message = "SEPAY_WEBHOOK".equalsIgnoreCase(source)
                     ? "Hệ thống SePay đã tự động xác nhận giao dịch chuyển khoản cho \"" + txTitle + "\". Khoản nợ đã được hoàn tất thành công."
                     : "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã xác nhận nhận tiền cho \"" + txTitle + "\". Khoản nợ đã được hoàn tất thành công.";
@@ -301,7 +329,7 @@ public class PaymentRequestService {
         try {
             String businessKey = "PAYMENT_REJECTED:" + saved.getId() + ":" + nextRejection;
             String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + saved.getId();
-            String txTitle = saved.getTransaction() != null ? saved.getTransaction().getTitle() : "Tất toán công nợ";
+            String txTitle = resolveTransactionTitle(saved);
             String message = "Chủ nợ (" + saved.getCreditor().getFullName() + ") đã từ chối xác nhận nhận tiền cho \"" + txTitle + "\". Vui lòng kiểm tra lại giao dịch hoặc chuyển khoản lại.";
             String html = emailService.buildPaymentNotificationHtml(
                     "Yêu Cầu Thanh Toán Bị Từ Chối",
@@ -371,15 +399,8 @@ public class PaymentRequestService {
 
         PaymentRequestBreakdownResponse breakdown = parseBreakdownJson(pr.getBreakdownJson());
         UUID transactionId = pr.getTransaction() != null ? pr.getTransaction().getId() : null;
-        String transactionTitle = pr.getTransaction() != null ? pr.getTransaction().getTitle() : null;
-        if (transactionTitle == null && breakdown != null && breakdown.getDebtItems() != null && !breakdown.getDebtItems().isEmpty()) {
-            transactionTitle = breakdown.getDebtItems().stream()
-                    .map(PaymentRequestItemResponse::getTransactionTitle)
-                    .collect(Collectors.joining(", "));
-        }
-        if (transactionTitle == null) {
-            transactionTitle = pr.getGroup() != null ? "Tất toán nhóm " + pr.getGroup().getName() : "Tất toán công nợ";
-        }
+        String transactionTitle = resolveTransactionTitle(pr, breakdown);
+        String periodTitle = breakdown != null ? breakdown.getPeriodTitle() : null;
 
         UUID groupId = pr.getGroup() != null ? pr.getGroup().getId() : (pr.getTransaction() != null ? pr.getTransaction().getGroup().getId() : null);
         String groupName = pr.getGroup() != null ? pr.getGroup().getName() : (pr.getTransaction() != null ? pr.getTransaction().getGroup().getName() : null);
@@ -390,6 +411,7 @@ public class PaymentRequestService {
                 .groupName(groupName)
                 .transactionId(transactionId)
                 .transactionTitle(transactionTitle)
+                .periodTitle(periodTitle)
                 .debtor(debtorRes)
                 .creditor(creditorRes)
                 .amount(pr.getAmount())
@@ -535,5 +557,112 @@ public class PaymentRequestService {
                 .map(PaymentInfo::getAccountHolderName)
                 .filter(name -> name != null && !name.isBlank())
                 .orElse(debtor.getFullName());
+    }
+
+    private void handleMultilateralNettingCompletion(PaymentRequest saved, PaymentRequestBreakdownResponse breakdown, LocalDateTime now) {
+        // Trường hợp 1: A chuyển cho C trước (A là người nhận nợ thay B: transferredDebtAmount > 0)
+        if (breakdown.getTransferredDebtAmount() != null && breakdown.getTransferredDebtAmount() > 0) {
+            // Tất cả các hóa đơn A nợ B (10k) chuyển thành PAID
+            if (breakdown.getTransferredShareIds() != null && !breakdown.getTransferredShareIds().isEmpty()) {
+                for (UUID shareId : breakdown.getTransferredShareIds()) {
+                    sharingMemberRepository.findById(shareId).ifPresent(sm -> {
+                        sm.setIsPaid(true);
+                        sm.setPaidAt(now);
+                        sharingMemberRepository.save(sm);
+                    });
+                }
+            }
+
+            // Kiểm tra PaymentRequest đối ứng của B (linkedPaymentRequestId)
+            UUID linkedPrId = breakdown.getLinkedPaymentRequestId();
+            PaymentRequest linkedPr = linkedPrId != null ? paymentRequestRepository.findById(linkedPrId).orElse(null) : null;
+
+            // Nếu B chưa chuyển thành công (linkedPr chưa COMPLETED)
+            if (linkedPr != null && linkedPr.getStatus() != PaymentRequestStatus.COMPLETED) {
+                User userB = breakdown.getTransferredDebtorId() != null
+                        ? userRepository.findById(breakdown.getTransferredDebtorId()).orElse(null)
+                        : null;
+                User userC = saved.getCreditor();
+                Group group = saved.getGroup() != null ? saved.getGroup() : (saved.getTransaction() != null ? saved.getTransaction().getGroup() : null);
+
+                if (userB != null && userC != null && group != null) {
+                    Transaction interimTx = Transaction.builder()
+                            .title("[Cấn trừ sao kê] B cấn trừ qua C (A đã trả thay)")
+                            .totalAmount(breakdown.getTransferredDebtAmount())
+                            .payer(userB)
+                            .group(group)
+                            .isAdjustment(true)
+                            .adjustmentType("NETTING_INTERIM_B_TO_C")
+                            .relatedPaymentRequestId(linkedPr.getId()) // Gắn với PR của B để khi B chuyển sẽ tự động xóa
+                            .build();
+                    Transaction savedTx = transactionRepository.save(interimTx);
+
+                    TransactionSharingMember interimShare = TransactionSharingMember.builder()
+                            .transaction(savedTx)
+                            .user(userC)
+                            .shareAmount(breakdown.getTransferredDebtAmount())
+                            .isPaid(false)
+                            .build();
+                    sharingMemberRepository.save(interimShare);
+                    log.info("Đã tạo giao dịch điều chỉnh trung gian B->C (id={}, số tiền={}) vì A đã chuyển nhưng B chưa chuyển",
+                            savedTx.getId(), breakdown.getTransferredDebtAmount());
+                }
+            }
+        }
+
+        // Trường hợp 2: B chuyển cho C trước (B là người được cấn trừ giảm nợ: offsetCreditAmount > 0)
+        if (breakdown.getOffsetCreditAmount() != null && breakdown.getOffsetCreditAmount() > 0) {
+            UUID linkedPrId = breakdown.getLinkedPaymentRequestId();
+            PaymentRequest linkedPr = linkedPrId != null ? paymentRequestRepository.findById(linkedPrId).orElse(null) : null;
+
+            // Nếu A chưa chuyển thành công (linkedPr chưa COMPLETED)
+            if (linkedPr != null && linkedPr.getStatus() != PaymentRequestStatus.COMPLETED) {
+                User userB = saved.getDebtor(); // B
+                User userA = breakdown.getTransferredDebtorId() != null
+                        ? userRepository.findById(breakdown.getTransferredDebtorId()).orElse(null)
+                        : null;
+                Group group = saved.getGroup() != null ? saved.getGroup() : (saved.getTransaction() != null ? saved.getTransaction().getGroup() : null);
+
+                if (userB != null && userA != null && group != null) {
+                    Transaction interimTx = Transaction.builder()
+                            .title("[Cấn trừ sao kê] B tạm ứng nợ cho A (chờ A trả C)")
+                            .totalAmount(breakdown.getOffsetCreditAmount())
+                            .payer(userB)
+                            .group(group)
+                            .isAdjustment(true)
+                            .adjustmentType("NETTING_INTERIM_B_TO_A")
+                            .relatedPaymentRequestId(linkedPr.getId()) // Gắn với PR của A để khi A chuyển sẽ tự động xóa
+                            .build();
+                    Transaction savedTx = transactionRepository.save(interimTx);
+
+                    TransactionSharingMember interimShare = TransactionSharingMember.builder()
+                            .transaction(savedTx)
+                            .user(userA)
+                            .shareAmount(breakdown.getOffsetCreditAmount())
+                            .isPaid(false)
+                            .build();
+                    sharingMemberRepository.save(interimShare);
+                    log.info("Đã tạo giao dịch điều chỉnh trung gian B->A (id={}, số tiền={}) vì B đã chuyển nhưng A chưa chuyển",
+                            savedTx.getId(), breakdown.getOffsetCreditAmount());
+                }
+            }
+        }
+    }
+
+    private void cleanUpInterimAdjustments(UUID paymentRequestId) {
+        if (paymentRequestId == null) return;
+        try {
+            List<Transaction> interimTxs = transactionRepository.findByRelatedPaymentRequestId(paymentRequestId);
+            if (interimTxs != null && !interimTxs.isEmpty()) {
+                for (Transaction itx : interimTxs) {
+                    sharingMemberRepository.deleteByTransactionId(itx.getId());
+                    transactionRepository.delete(itx);
+                    log.info("Tự động xóa giao dịch điều chỉnh trung gian {} (loại: {}) gắn với PaymentRequest {}",
+                            itx.getId(), itx.getAdjustmentType(), paymentRequestId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi dọn dẹp giao dịch điều chỉnh trung gian cho request {}: {}", paymentRequestId, e.getMessage());
+        }
     }
 }

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quyết toán nhận tiền sao kê | Billing Sharing</title>
+<style>
+.total-badge{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:24px;margin:24px 0;}
+.total-label{font-size:13px;color:#065f46;}
+.total-amount{font-size:30px;line-height:1.4;color:#047857;font-weight:bold;margin-top:6px;}
+.section-title{font-size:18px;font-weight:bold;color:#0f172a;margin:28px 0 14px;}
+.item-card{border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:16px 0;background:#ffffff;}
+.btn-main{display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;}
+@media only screen and (max-width:620px){.content{padding:24px 18px!important}.outer{padding:12px 8px!important}h1{font-size:25px!important}}
+</style></head>
+<body style="margin:0;padding:0;background:#eef2f7;color:#1e293b;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">Thông báo nhận tiền sao kê chi tiêu nhóm — Billing Sharing.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#eef2f7">
+<tr><td class="outer" align="center" style="padding:32px 12px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
+<tr><td class="content" bgcolor="#0f172a" style="padding:28px 32px;border-top:4px solid #10b981;color:#ffffff">
+<p style="margin:0 0 20px;font-size:16px;font-weight:bold;letter-spacing:.3px;color:#a7f3d0">Billing Sharing</p>
+<h1 style="margin:0;font-size:28px;line-height:1.3;font-weight:bold">Quyết toán sao kê chi tiêu</h1>
+<p style="margin:10px 0 0;font-size:13px;color:#cbd5e1">Quản lý chi tiêu · Minh bạch công nợ</p></td></tr>
+
+<tr><td class="content" style="padding:28px 32px">
+<p style="color:#64748b;font-size:13px">Nhóm {{groupName}} · {{periodTitle}}</p>
+<p>Xin chào <strong>{{userName}}</strong>,</p>
+<p>Kỳ sao kê chi tiêu trong nhóm <strong>{{groupName}}</strong> ({{periodTitle}}) đã được chốt thành công.</p>
+<p>Dưới đây là tổng hợp số tiền các thành viên sẽ chuyển khoản hoàn lại cho bạn:</p>
+
+<div class="total-badge" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:24px;margin:24px 0;">
+  <div class="total-label" style="font-size:13px;color:#065f46;font-weight:600;">Tổng số tiền bạn sẽ được nhận lại</div>
+  <div class="total-amount" style="font-size:30px;line-height:1.4;color:#047857;font-weight:bold;margin-top:6px;">+{{totalToReceive}} VND</div>
+</div>
+
+<div class="section-title" style="font-size:18px;font-weight:bold;color:#0f172a;margin:28px 0 14px;">👥 Danh Sách Thành Viên Sẽ Chuyển Tiền Cho Bạn</div>
+{{incomingRowsHtml}}
+
+<div style="margin:28px 0 16px;text-align:center;">
+  <a href="{{statementWebUrl}}" class="btn-main" target="_blank" style="display:inline-block;background:#4f46e5;border:12px solid #4f46e5;border-left-width:20px;border-right-width:20px;border-radius:8px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;text-align:center;">Xem Chi Tiết Sao Kê Trên Web</a>
+</div>
+</td></tr>
+
+<tr><td style="padding:20px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;text-align:center;font-size:12px;color:#64748b">
+<strong style="color:#334155">Billing Sharing</strong><br>Email tự động. Vui lòng không trả lời thư này.
+</td></tr>
+</table>
+</td></tr>
+</table></body></html>

@@ -44,6 +44,19 @@ public class ScheduledTaskService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+    public static String formatPeriodTitle(LocalDateTime startDate, LocalDateTime endDate) {
+        if (startDate == null || endDate == null) {
+            return "Kỳ sao kê";
+        }
+        String startStr = startDate.getDayOfMonth() + "/" + startDate.getMonthValue();
+        String endStr = endDate.getDayOfMonth() + "/" + endDate.getMonthValue();
+        if (startDate.getYear() != endDate.getYear()) {
+            startStr += "/" + startDate.getYear();
+            endStr += "/" + endDate.getYear();
+        }
+        return "Kỳ sao kê " + startStr + " - " + endStr;
+    }
+
     /**
      * Chạy vào 08:30 AM hàng ngày (UTC+7):
      * 1. Chỉ áp dụng cho các ngày từ 1 đến 27.
@@ -102,6 +115,9 @@ public class ScheduledTaskService {
 
         List<TransactionSharingMember> eligibleShares = new ArrayList<>();
         for (TransactionSharingMember share : unpaidShares) {
+            if (Boolean.TRUE.equals(share.getTransaction().getIsAdjustment())) {
+                continue;
+            }
             if (paymentRequestRepository.existsBySharingMemberIdAndStatusIn(
                     share.getId(),
                     List.of(PaymentRequestStatus.PENDING, PaymentRequestStatus.WAITING_APPROVE)
@@ -129,6 +145,31 @@ public class ScheduledTaskService {
             String pairKey = u1.compareTo(u2) < 0 ? (u1 + ":" + u2) : (u2 + ":" + u1);
             pairMap.computeIfAbsent(pairKey, k -> new ArrayList<>()).add(share);
         }
+
+        // 1. Xác định mốc kỳ sao kê (StatementPeriod)
+        Optional<StatementPeriod> lastPeriodOpt = statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId());
+        LocalDateTime startDate = lastPeriodOpt.map(StatementPeriod::getEndDate)
+                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : endDate.minusMonths(1).with(LocalTime.of(8, 30, 0)));
+        int periodNumber = lastPeriodOpt.map(p -> p.getPeriodNumber() + 1).orElse(1);
+        String periodDebtTitle = formatPeriodTitle(startDate, endDate);
+
+        class BilateralDebtEdge {
+            User debtor;
+            User creditor;
+            long netAmount;
+            long directDebtAmount;
+            long grossDebt;
+            long nettedCredit;
+            long transferredDebtAmount = 0L;
+            long offsetCreditAmount = 0L;
+            User transferredUser;
+            List<TransactionSharingMember> debtShares = new ArrayList<>();
+            List<TransactionSharingMember> nettedShares = new ArrayList<>();
+            List<TransactionSharingMember> transferredShares = new ArrayList<>();
+            PaymentRequest savedPr;
+        }
+
+        List<BilateralDebtEdge> debtEdges = new ArrayList<>();
 
         for (Map.Entry<String, List<TransactionSharingMember>> entry : pairMap.entrySet()) {
             String[] userIds = entry.getKey().split(":");
@@ -166,16 +207,86 @@ public class ScheduledTaskService {
                 continue;
             }
 
-            User debtor = netDiff > 0 ? u1 : u2;
-            User creditor = netDiff > 0 ? u2 : u1;
-            long netAmount = Math.abs(netDiff);
-            long grossDebt = netDiff > 0 ? debt1To2 : debt2To1;
-            long nettedCredit = netDiff > 0 ? debt2To1 : debt1To2;
-            List<TransactionSharingMember> debtShares = netDiff > 0 ? shares1To2 : shares2To1;
-            List<TransactionSharingMember> nettedShares = netDiff > 0 ? shares2To1 : shares1To2;
+            BilateralDebtEdge edge = new BilateralDebtEdge();
+            edge.debtor = netDiff > 0 ? u1 : u2;
+            edge.creditor = netDiff > 0 ? u2 : u1;
+            edge.netAmount = Math.abs(netDiff);
+            edge.directDebtAmount = edge.netAmount;
+            edge.grossDebt = netDiff > 0 ? debt1To2 : debt2To1;
+            edge.nettedCredit = netDiff > 0 ? debt2To1 : debt1To2;
+            edge.debtShares = netDiff > 0 ? shares1To2 : shares2To1;
+            edge.nettedShares = netDiff > 0 ? shares2To1 : shares1To2;
+            debtEdges.add(edge);
+        }
+
+        // Cấn trừ nợ đa phương (Multilateral Netting Pass):
+        // Tìm các bộ ba (A, B, C) sao cho: A nợ B (edgeAB), B nợ C (edgeBC), và C là chủ nợ
+        for (BilateralDebtEdge edgeAB : new ArrayList<>(debtEdges)) {
+            if (edgeAB.netAmount <= 0) continue;
+            User userA = edgeAB.debtor;
+            User userB = edgeAB.creditor;
+
+            for (BilateralDebtEdge edgeBC : debtEdges) {
+                if (edgeBC.netAmount <= 0) continue;
+                if (!edgeBC.debtor.getId().equals(userB.getId())) continue;
+                User userC = edgeBC.creditor;
+                if (userC.getId().equals(userA.getId())) continue;
+
+                // Tìm edgeAC: A nợ C (nếu có)
+                BilateralDebtEdge edgeAC = null;
+                for (BilateralDebtEdge e : debtEdges) {
+                    if (e.debtor.getId().equals(userA.getId()) && e.creditor.getId().equals(userC.getId())) {
+                        edgeAC = e;
+                        break;
+                    }
+                }
+
+                long k = Math.min(edgeAB.netAmount, edgeBC.netAmount);
+                if (k > 0) {
+                    if (edgeAC == null) {
+                        edgeAC = new BilateralDebtEdge();
+                        edgeAC.debtor = userA;
+                        edgeAC.creditor = userC;
+                        edgeAC.netAmount = 0L;
+                        edgeAC.directDebtAmount = 0L;
+                        edgeAC.grossDebt = 0L;
+                        edgeAC.nettedCredit = 0L;
+                        debtEdges.add(edgeAC);
+                    }
+
+                    edgeAB.netAmount -= k;
+                    edgeBC.netAmount -= k;
+                    edgeBC.offsetCreditAmount += k;
+                    edgeBC.transferredUser = userA;
+
+                    edgeAC.netAmount += k;
+                    edgeAC.transferredDebtAmount += k;
+                    edgeAC.transferredUser = userB;
+                    edgeAC.transferredShares.addAll(edgeAB.debtShares);
+
+                    log.info("Cấn trừ đa phương thành công: {} nợ {} ({}đ) chuyển sang trả {} thay cho {}. {} nợ {} còn {}đ, {} nợ {} thành {}đ",
+                            userA.getFullName(), userB.getFullName(), k,
+                            userC.getFullName(), userB.getFullName(),
+                            userB.getFullName(), userC.getFullName(), edgeBC.netAmount,
+                            userA.getFullName(), userC.getFullName(), edgeAC.netAmount);
+                    break;
+                }
+            }
+        }
+
+        List<BilateralDebtEdge> activeEdges = debtEdges.stream()
+                .filter(e -> e.netAmount > 0)
+                .collect(Collectors.toList());
+
+        for (BilateralDebtEdge edge : activeEdges) {
+            User debtor = edge.debtor;
+            User creditor = edge.creditor;
+            long netAmount = edge.netAmount;
+            long grossDebt = edge.grossDebt;
+            long nettedCredit = edge.nettedCredit;
 
             List<Map<String, Object>> debtItemsJson = new ArrayList<>();
-            for (TransactionSharingMember ds : debtShares) {
+            for (TransactionSharingMember ds : edge.debtShares) {
                 debtItemsJson.add(Map.of(
                         "transactionId", ds.getTransaction().getId().toString(),
                         "transactionTitle", ds.getTransaction().getTitle(),
@@ -185,7 +296,7 @@ public class ScheduledTaskService {
             }
 
             List<Map<String, Object>> nettedItemsJson = new ArrayList<>();
-            for (TransactionSharingMember ns : nettedShares) {
+            for (TransactionSharingMember ns : edge.nettedShares) {
                 nettedItemsJson.add(Map.of(
                         "transactionId", ns.getTransaction().getId().toString(),
                         "transactionTitle", ns.getTransaction().getTitle(),
@@ -194,19 +305,50 @@ public class ScheduledTaskService {
                 ));
             }
 
-            String formula = nettedCredit > 0
-                    ? EmailService.money(grossDebt) + "đ (Nợ gốc) - " + EmailService.money(nettedCredit) + "đ (Cấn trừ) = " + EmailService.money(netAmount) + " VND"
-                    : EmailService.money(netAmount) + " VND";
+            // Xây dựng công thức giải trình chi tiết
+            String formula;
+            String nettingDetailNote = null;
+            if (edge.transferredDebtAmount > 0) {
+                nettingDetailNote = "Nhận nợ thay " + edge.transferredUser.getFullName() + " trả " + creditor.getFullName() + ": +" + EmailService.money(edge.transferredDebtAmount) + "đ";
+                formula = EmailService.money(edge.directDebtAmount) + "đ (Nợ gốc " + creditor.getFullName() + ") + "
+                        + EmailService.money(edge.transferredDebtAmount) + "đ (Nhận nợ thay " + edge.transferredUser.getFullName() + ") = "
+                        + EmailService.money(netAmount) + " VND";
+            } else if (edge.offsetCreditAmount > 0) {
+                nettingDetailNote = "Cấn trừ chuyển nợ sang " + edge.transferredUser.getFullName() + " trả thay " + creditor.getFullName() + ": -" + EmailService.money(edge.offsetCreditAmount) + "đ";
+                formula = EmailService.money(edge.directDebtAmount) + "đ (Nợ gốc " + creditor.getFullName() + ") - "
+                        + EmailService.money(edge.offsetCreditAmount) + "đ (Cấn trừ " + edge.transferredUser.getFullName() + " trả thay) = "
+                        + EmailService.money(netAmount) + " VND";
+            } else if (nettedCredit > 0) {
+                formula = EmailService.money(grossDebt) + "đ (Nợ gốc) - " + EmailService.money(nettedCredit) + "đ (Cấn trừ) = " + EmailService.money(netAmount) + " VND";
+            } else {
+                formula = EmailService.money(netAmount) + " VND";
+            }
+
+            List<String> transferredShareIds = edge.transferredShares.stream()
+                    .map(s -> s.getId().toString())
+                    .collect(Collectors.toList());
 
             Map<String, Object> breakdownMap = new LinkedHashMap<>();
             breakdownMap.put("grossDebt", grossDebt);
             breakdownMap.put("nettedCredit", nettedCredit);
             breakdownMap.put("netAmount", netAmount);
             breakdownMap.put("formula", formula);
+            breakdownMap.put("periodTitle", periodDebtTitle);
             breakdownMap.put("debtorName", debtor.getFullName());
             breakdownMap.put("creditorName", creditor.getFullName());
             breakdownMap.put("debtItems", debtItemsJson);
             breakdownMap.put("nettedItems", nettedItemsJson);
+
+            // Multilateral netting metadata
+            breakdownMap.put("directDebtAmount", edge.directDebtAmount);
+            breakdownMap.put("transferredDebtAmount", edge.transferredDebtAmount);
+            breakdownMap.put("offsetCreditAmount", edge.offsetCreditAmount);
+            breakdownMap.put("nettingDetailNote", nettingDetailNote);
+            if (edge.transferredUser != null) {
+                breakdownMap.put("transferredDebtorId", edge.transferredUser.getId().toString());
+                breakdownMap.put("transferredDebtorName", edge.transferredUser.getFullName());
+            }
+            breakdownMap.put("transferredShareIds", transferredShareIds);
 
             String breakdownJson = "{}";
             try {
@@ -220,8 +362,14 @@ public class ScheduledTaskService {
             String note = PaymentDescriptionUtil.buildTransferDescriptionWithIdentify(identify, debtorBankName);
 
             List<TransactionSharingMember> allShares = new ArrayList<>();
-            allShares.addAll(debtShares);
-            allShares.addAll(nettedShares);
+            allShares.addAll(edge.debtShares);
+            allShares.addAll(edge.nettedShares);
+            allShares.addAll(edge.transferredShares);
+
+            Transaction primaryTx = !edge.debtShares.isEmpty() ? edge.debtShares.get(0).getTransaction()
+                    : (!allShares.isEmpty() ? allShares.get(0).getTransaction() : null);
+            TransactionSharingMember primaryShare = !edge.debtShares.isEmpty() ? edge.debtShares.get(0)
+                    : (!allShares.isEmpty() ? allShares.get(0) : null);
 
             PaymentRequest pr = PaymentRequest.builder()
                     .group(group)
@@ -235,21 +383,41 @@ public class ScheduledTaskService {
                     .identify(identify)
                     .note(note)
                     .sharingMembers(allShares)
-                    .transaction(debtShares.isEmpty() ? (allShares.isEmpty() ? null : allShares.get(0).getTransaction()) : debtShares.get(0).getTransaction())
-                    .sharingMember(debtShares.isEmpty() ? (allShares.isEmpty() ? null : allShares.get(0)) : debtShares.get(0))
+                    .transaction(primaryTx)
+                    .sharingMember(primaryShare)
                     .build();
 
-            paymentRequestRepository.save(pr);
+            edge.savedPr = paymentRequestRepository.save(pr);
             createdPaymentRequests++;
         }
 
-        // 2. Xác định mốc kỳ sao kê (StatementPeriod)
-        Optional<StatementPeriod> lastPeriodOpt = statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId());
-        LocalDateTime startDate = lastPeriodOpt.map(StatementPeriod::getEndDate)
-                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : endDate.minusMonths(1).with(LocalTime.of(8, 30, 0)));
-        int periodNumber = lastPeriodOpt.map(p -> p.getPeriodNumber() + 1).orElse(1);
+        // Link các PaymentRequest đối ứng trong cấn trừ đa phương
+        for (BilateralDebtEdge edge1 : activeEdges) {
+            if (edge1.savedPr == null || edge1.transferredUser == null) continue;
+            for (BilateralDebtEdge edge2 : activeEdges) {
+                if (edge2.savedPr == null || edge1 == edge2) continue;
+                boolean isPair = (edge1.transferredDebtAmount > 0 && edge2.offsetCreditAmount > 0 &&
+                        edge1.transferredUser.getId().equals(edge2.debtor.getId()) &&
+                        edge2.transferredUser.getId().equals(edge1.debtor.getId()))
+                        ||
+                        (edge2.transferredDebtAmount > 0 && edge1.offsetCreditAmount > 0 &&
+                        edge2.transferredUser.getId().equals(edge1.debtor.getId()) &&
+                        edge1.transferredUser.getId().equals(edge2.debtor.getId()));
 
-        // 3. Lấy tất cả PaymentRequest còn nợ trong nhóm (PENDING và WAITING_APPROVE)
+                if (isPair) {
+                    try {
+                        Map<String, Object> map1 = objectMapper.readValue(edge1.savedPr.getBreakdownJson(), Map.class);
+                        map1.put("linkedPaymentRequestId", edge2.savedPr.getId().toString());
+                        edge1.savedPr.setBreakdownJson(objectMapper.writeValueAsString(map1));
+                        paymentRequestRepository.save(edge1.savedPr);
+                    } catch (Exception ex) {
+                        log.error("Lỗi cập nhật linkedPaymentRequestId: {}", ex.getMessage());
+                    }
+                }
+            }
+        }
+
+        // 2. Lấy tất cả PaymentRequest còn nợ trong nhóm (PENDING và WAITING_APPROVE)
         List<PaymentRequest> activeRequests = paymentRequestRepository.findByTransactionGroupIdAndStatusIn(
                 group.getId(),
                 List.of(PaymentRequestStatus.PENDING, PaymentRequestStatus.WAITING_APPROVE)
@@ -279,19 +447,15 @@ public class ScheduledTaskService {
             User creditor = pr.getCreditor();
             PaymentInfo paymentInfo = paymentInfoRepository.findByUserId(creditor.getId()).orElse(null);
 
-            String txTitle = pr.getTransaction() != null ? pr.getTransaction().getTitle() : null;
-            if (txTitle == null) {
-                PaymentRequestBreakdownResponse br = paymentRequestService.parseBreakdownJson(pr.getBreakdownJson());
-                if (br != null && br.getDebtItems() != null && !br.getDebtItems().isEmpty()) {
-                    txTitle = br.getDebtItems().stream().map(PaymentRequestItemResponse::getTransactionTitle).collect(Collectors.joining(", "));
-                } else {
-                    txTitle = "Tất toán công nợ";
-                }
-            }
+            PaymentRequestBreakdownResponse br = paymentRequestService.parseBreakdownJson(pr.getBreakdownJson());
+            String txTitle = br != null && br.getPeriodTitle() != null && !br.getPeriodTitle().isBlank()
+                    ? br.getPeriodTitle()
+                    : periodDebtTitle;
 
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("requestId", pr.getId().toString());
             item.put("transactionTitle", txTitle);
+            item.put("periodTitle", txTitle);
             item.put("debtorId", pr.getDebtor().getId().toString());
             item.put("debtorName", pr.getDebtor().getFullName());
             item.put("creditorId", creditor.getId().toString());
@@ -379,15 +543,9 @@ public class ScheduledTaskService {
                 String cleanDesc = pr.getNote();
                 String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
                 PaymentRequestBreakdownResponse br = paymentRequestService.parseBreakdownJson(pr.getBreakdownJson());
-                String itemTitle = pr.getTransaction() != null ? pr.getTransaction().getTitle() : null;
-                if (itemTitle == null && br != null && br.getDebtItems() != null && !br.getDebtItems().isEmpty()) {
-                    itemTitle = br.getDebtItems().stream()
-                            .map(PaymentRequestItemResponse::getTransactionTitle)
-                            .collect(Collectors.joining(", "));
-                }
-                if (itemTitle == null) {
-                    itemTitle = "Tất toán nợ nhóm " + group.getName();
-                }
+                String itemTitle = br != null && br.getPeriodTitle() != null && !br.getPeriodTitle().isBlank()
+                        ? br.getPeriodTitle()
+                        : periodDebtTitle;
 
                 if (pr.getStatus() == PaymentRequestStatus.PENDING) {
                     String qrImgHtml = "";
@@ -466,6 +624,96 @@ public class ScheduledTaskService {
             );
         }
 
+        // 6. Gom khoản nhận theo từng Creditor và gửi Email Outbox
+        Map<User, List<PaymentRequest>> creditorMap = new LinkedHashMap<>();
+        for (PaymentRequest pr : activeRequests) {
+            creditorMap.computeIfAbsent(pr.getCreditor(), k -> new ArrayList<>()).add(pr);
+        }
+
+        for (Map.Entry<User, List<PaymentRequest>> entry : creditorMap.entrySet()) {
+            User creditor = entry.getKey();
+            List<PaymentRequest> requests = entry.getValue();
+
+            long totalToReceive = requests.stream()
+                    .mapToLong(PaymentRequest::getAmount)
+                    .sum();
+
+            StringBuilder incomingRowsHtml = new StringBuilder();
+            for (PaymentRequest pr : requests) {
+                User debtor = pr.getDebtor();
+                PaymentRequestBreakdownResponse br = paymentRequestService.parseBreakdownJson(pr.getBreakdownJson());
+                String itemTitle = br != null && br.getPeriodTitle() != null && !br.getPeriodTitle().isBlank()
+                        ? br.getPeriodTitle()
+                        : periodDebtTitle;
+
+                String statusBadge = pr.getStatus() == PaymentRequestStatus.WAITING_APPROVE
+                        ? "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#fef3c7;color:#92400e;margin-left:6px;border:1px solid #fde68a;\">Chờ bạn duyệt</span>"
+                        : "<span style=\"display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#f1f5f9;color:#475569;margin-left:6px;border:1px solid #cbd5e1;\">Đang chờ chuyển</span>";
+
+                StringBuilder nettingNoteHtml = new StringBuilder();
+                if (br != null && br.getNettingDetailNote() != null && !br.getNettingDetailNote().isBlank()) {
+                    nettingNoteHtml.append("<div style=\"background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12px;color:#334155;\">")
+                            .append("<div style=\"font-weight:600;color:#0284c7;margin-bottom:2px;\">✨ Ghi chú cấn trừ:</div>")
+                            .append("<div>").append(EmailService.escape(br.getNettingDetailNote())).append("</div>")
+                            .append("</div>");
+                } else if (br != null && br.getNettedCredit() > 0) {
+                    nettingNoteHtml.append("<div style=\"background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12px;color:#334155;\">")
+                            .append("<div style=\"font-weight:600;color:#0284c7;margin-bottom:2px;\">✨ Cấn trừ nợ chéo 2 chiều:</div>")
+                            .append("<div>Khấu trừ ngược lại: <strong style=\"color:#16a34a;\">-").append(EmailService.money(br.getNettedCredit())).append(" VND</strong></div>")
+                            .append("<div style=\"font-size:11px;color:#64748b;\">Công thức: ").append(EmailService.escape(br.getFormula())).append("</div>")
+                            .append("</div>");
+                }
+
+                String actionUrl = emailService.getDashboardUrl() + "/payment-requests/" + pr.getId();
+
+                incomingRowsHtml.append("<div class=\"item-card\" style=\"border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:16px 0;background:#ffffff;\">")
+                        .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-bottom:8px;\">")
+                        .append("<tr>")
+                        .append("<td align=\"left\" style=\"vertical-align:middle;\">")
+                        .append("<span style=\"font-size:15px;font-weight:bold;color:#0f172a;\">").append(EmailService.escape(debtor.getFullName())).append("</span>")
+                        .append(statusBadge)
+                        .append("</td>")
+                        .append("<td align=\"right\" style=\"vertical-align:top;\">")
+                        .append("<span style=\"font-size:20px;font-weight:bold;color:#047857;\">+").append(EmailService.money(pr.getAmount())).append(" VND</span>")
+                        .append("</td>")
+                        .append("</tr>")
+                        .append("</table>")
+                        .append("<div style=\"font-size:13px;color:#64748b;margin-bottom:6px;\">Khoản: <strong>").append(EmailService.escape(itemTitle)).append("</strong></div>");
+
+                if (pr.getNote() != null && !pr.getNote().isBlank()) {
+                    incomingRowsHtml.append("<div style=\"font-size:12px;color:#475569;background:#f8fafc;padding:6px 10px;border-radius:6px;margin:6px 0;\">Nội dung CK dự kiến: <strong>").append(EmailService.escape(pr.getNote())).append("</strong></div>");
+                }
+
+                incomingRowsHtml.append(nettingNoteHtml)
+                        .append("<div style=\"text-align:right;margin-top:10px;\"><a href=\"").append(actionUrl).append("\" style=\"font-size:13px;color:#4f46e5;text-decoration:none;font-weight:600;\">Xem chi tiết khoản thanh toán &rarr;</a></div>")
+                        .append("</div>");
+            }
+
+            String finalIncomingHtml = incomingRowsHtml.length() > 0 ? incomingRowsHtml.toString() : "<p style=\"color:#64748b;\">Không có khoản thanh toán nào đang chờ bạn nhận.</p>";
+            String emailHtml = emailService.buildCreditorStatementHtml(
+                    creditor.getFullName(),
+                    group.getName(),
+                    periodTitle,
+                    totalToReceive,
+                    finalIncomingHtml,
+                    statementWebUrl
+            );
+
+            String businessKey = "STATEMENT_CREDIT:" + group.getId() + ":" + creditor.getId() + ":" + periodNumber;
+            String subject = "Thông báo nhận tiền sao kê nhóm " + group.getName() + " - " + periodTitle;
+
+            emailOutboxService.recordOutbox(
+                    EmailType.STATEMENT,
+                    creditor.getEmail(),
+                    creditor.getFullName(),
+                    subject,
+                    emailHtml,
+                    snapshotJson,
+                    businessKey,
+                    endDate.toLocalDate()
+            );
+        }
+
         long pendingCount = activeRequests.stream().filter(r -> r.getStatus() == PaymentRequestStatus.PENDING).count();
         long waitingCount = activeRequests.stream().filter(r -> r.getStatus() == PaymentRequestStatus.WAITING_APPROVE).count();
         return ManualSettlementResponse.builder()
@@ -516,7 +764,9 @@ public class ScheduledTaskService {
                 User creditor = pr.getCreditor();
                 PaymentRequestBreakdownResponse br = paymentRequestService.parseBreakdownJson(pr.getBreakdownJson());
                 String groupName = pr.getGroup() != null ? pr.getGroup().getName() : (pr.getTransaction() != null ? pr.getTransaction().getGroup().getName() : "Nhóm");
-                String itemTitle = pr.getTransaction() != null ? pr.getTransaction().getTitle() : null;
+                String itemTitle = br != null && br.getPeriodTitle() != null && !br.getPeriodTitle().isBlank()
+                        ? br.getPeriodTitle()
+                        : (pr.getTransaction() != null ? pr.getTransaction().getTitle() : null);
                 if (itemTitle == null && br != null && br.getDebtItems() != null && !br.getDebtItems().isEmpty()) {
                     itemTitle = br.getDebtItems().stream()
                             .map(PaymentRequestItemResponse::getTransactionTitle)
