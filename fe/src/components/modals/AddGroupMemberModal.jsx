@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, UserPlus } from "lucide-react";
 import { groupApi } from "../../services/api";
+import { formatVND } from "../../utils/formatters";
 
 export default function AddGroupMemberModal({ group, onClose, onMembersChanged }) {
   const [email, setEmail] = useState("");
@@ -49,9 +50,34 @@ export default function AddGroupMemberModal({ group, onClose, onMembersChanged }
         </div>
         {loading ? <p>Đang tải thành viên...</p> : (
           <ul className="max-h-48 overflow-y-auto mb-4 divide-y divide-slate-100">
-            {members.map((member) => <li key={member.userId || member.id} className="py-2 text-sm">
-              <div className="font-medium">{member.fullName}</div><div className="text-slate-500">{member.email}</div>
-            </li>)}
+            {members.map((member) => {
+              const hasBal = member.balance !== undefined && member.balance !== null;
+              const bal = member.balance ?? 0;
+              const isPos = bal > 0;
+              const isZero = bal === 0;
+
+              return (
+                <li key={member.userId || member.id} className="py-2.5 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="font-medium text-slate-800">{member.fullName}</div>
+                    <div className="text-slate-500 text-xs">{member.email}</div>
+                  </div>
+                  {hasBal && (
+                    <div className="text-right shrink-0 ml-3">
+                      <span className="text-[10px] text-slate-400 block font-normal">Số dư</span>
+                      <span
+                        className={`font-bold text-xs ${
+                          isZero ? "text-slate-500" : isPos ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
+                        {isPos ? "+" : ""}
+                        {formatVND(bal)}
+                      </span>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         <form onSubmit={submit} className="space-y-3">

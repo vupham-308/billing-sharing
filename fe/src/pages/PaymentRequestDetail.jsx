@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
+  Receipt,
   CreditCard,
   ArrowLeft,
   CheckCircle2,
@@ -138,24 +139,25 @@ export default function PaymentRequestDetail() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-xl mx-auto space-y-6">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center justify-between">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Navigation Breadcrumb & Group Context */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link
             to="/billing-sharing"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại bảng chi tiêu</span>
+            <span>Quay lại trang chủ</span>
           </Link>
-          <div className="flex items-center gap-2">
-            {request.identify && (
-              <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
-                {request.identify}
+
+          {request?.groupName && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">Nhóm:</span>
+              <span className="px-2.5 py-1 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-800 shadow-2xs">
+                {request.groupName}
               </span>
-            )}
-            <span className="text-xs font-mono text-slate-400">ID: {request.id.slice(0, 8)}</span>
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Alerts */}
@@ -172,58 +174,71 @@ export default function PaymentRequestDetail() {
           </div>
         )}
 
-        {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 p-6 text-white text-center">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-200 block">
-              Chi Tiết Yêu Cầu Thanh Toán
-            </span>
-            <h1 className="text-xl font-bold mt-1">{request.transactionTitle || "Chi tiêu chia sẻ"}</h1>
-            <div className="mt-3">
-              <span className="text-3xl font-extrabold">{Number(request.amount).toLocaleString("vi-VN")} VND</span>
-              {request.breakdown && request.breakdown.nettedCredit > 0 && (
-                <div className="text-xs text-indigo-100 mt-1 font-medium">
-                  ✨ Đã cấn trừ 2 chiều: Nợ gốc {Number(request.breakdown.grossDebt).toLocaleString("vi-VN")} VND - Khấu trừ {Number(request.breakdown.nettedCredit).toLocaleString("vi-VN")} VND
-                </div>
-              )}
+        {/* Header Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Receipt className="w-6 h-6" />
             </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900">Chi Tiết Yêu Cầu Thanh Toán</h1>
+                {request.groupName && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {request.groupName}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {request.transactionTitle
+                  ? `${request.transactionTitle} • Đối soát bù trừ công nợ & thanh toán`
+                  : "Xem lại chi tiết giao dịch, số tiền cần chuyển và đối soát bù trừ công nợ"}
+              </p>
+            </div>
+          </div>
 
-            <div className="mt-3 flex items-center justify-center gap-2">
+          {/* Amount & Status Badge */}
+          <div className="flex flex-col md:items-end gap-1.5 shrink-0">
+            <div className="flex items-baseline gap-1 text-slate-900">
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                {Number(request.amount).toLocaleString("vi-VN")}
+              </span>
+              <span className="text-xs font-bold text-slate-500">VND</span>
+            </div>
+            <div>
               {isPending && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-200 border border-amber-300/30">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Chờ chuyển tiền (PENDING)</span>
                 </span>
               )}
               {isWaitingApprove && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-200 border border-blue-300/30">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Chờ chủ nợ xác nhận (WAITING_APPROVE)</span>
                 </span>
               )}
               {isCompleted && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-300/30">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Đã thanh toán hoàn tất (COMPLETED)</span>
                 </span>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Details Body */}
-          <div className="p-6 space-y-5">
+        {/* Main Details Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200 space-y-6">
             {/* Participants */}
             <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
               <div>
                 <span className="text-slate-400 block">Người cần chuyển (Người nợ):</span>
                 <span className="font-bold text-slate-800 text-sm">{request.debtor?.fullName}</span>
-                <p className="text-[11px] text-slate-500">{request.debtor?.email}</p>
               </div>
               <div>
                 <span className="text-slate-400 block">Người nhận tiền (Chủ nợ):</span>
                 <span className="font-bold text-slate-800 text-sm">{request.creditor?.fullName}</span>
-                <p className="text-[11px] text-slate-500">{request.creditor?.email}</p>
               </div>
             </div>
 
@@ -234,34 +249,61 @@ export default function PaymentRequestDetail() {
                   <h3 className="font-bold text-sky-950 text-sm flex items-center gap-1.5">
                     ✨ Bảng giải trình cấn trừ bù trừ 2 chiều
                   </h3>
-                  <span className="text-[11px] text-sky-700 font-semibold px-2 py-0.5 bg-sky-100 rounded-md">
-                    Pairwise Netting
-                  </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 p-2.5 bg-white rounded-lg border border-sky-100 text-center">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Khoản nợ gốc</span>
-                    <span className="font-bold text-rose-600 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 p-3 bg-white rounded-lg border border-sky-100 text-center">
+                  <div className="flex-1 min-w-[85px]">
+                    <span className="text-[10px] text-slate-400 block uppercase font-medium">Khoản nợ gốc</span>
+                    <span className="font-bold text-rose-600 text-sm block mt-0.5">
                       {Number(request.breakdown.grossDebt).toLocaleString("vi-VN")} VND
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Nợ cấn trừ</span>
-                    <span className="font-bold text-emerald-600 text-sm">
-                      -{Number(request.breakdown.nettedCredit).toLocaleString("vi-VN")} VND
+
+                  <span className="text-slate-400 font-bold text-base select-none shrink-0">-</span>
+
+                  <div className="flex-1 min-w-[85px]">
+                    <span className="text-[10px] text-slate-400 block uppercase font-medium">Nợ cấn trừ</span>
+                    <span className="font-bold text-emerald-600 text-sm block mt-0.5">
+                      {Number(request.breakdown.nettedCredit).toLocaleString("vi-VN")} VND
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Thực chuyển</span>
-                    <span className="font-bold text-indigo-600 text-sm">
+
+                  {request.breakdown.transferredDebtAmount > 0 && (
+                    <>
+                      <span className="text-slate-400 font-bold text-base select-none shrink-0">+</span>
+                      <div className="flex-1 min-w-[85px]">
+                        <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                          Tiền nợ {request.breakdown.transferredDebtorName || "Minh"}
+                        </span>
+                        <span className="font-bold text-amber-600 text-sm block mt-0.5">
+                          {Number(request.breakdown.transferredDebtAmount).toLocaleString("vi-VN")} VND
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {request.breakdown.offsetCreditAmount > 0 && (
+                    <>
+                      <span className="text-slate-400 font-bold text-base select-none shrink-0">-</span>
+                      <div className="flex-1 min-w-[85px]">
+                        <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                          Cấn trừ {request.breakdown.transferredDebtorName || "thành viên"}
+                        </span>
+                        <span className="font-bold text-emerald-600 text-sm block mt-0.5">
+                          {Number(request.breakdown.offsetCreditAmount).toLocaleString("vi-VN")} VND
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <span className="text-slate-400 font-bold text-base select-none shrink-0">=</span>
+
+                  <div className="flex-1 min-w-[85px]">
+                    <span className="text-[10px] text-slate-400 block uppercase font-medium">Thực chuyển</span>
+                    <span className="font-bold text-indigo-600 text-sm block mt-0.5">
                       {Number(request.breakdown.netAmount).toLocaleString("vi-VN")} VND
                     </span>
                   </div>
-                </div>
-
-                <div className="p-2 bg-sky-100/60 rounded-md font-mono text-[11px] text-slate-700 text-center">
-                  <strong>Công thức:</strong> {request.breakdown.formula}
                 </div>
 
                 {/* Details Breakdown */}
@@ -380,6 +422,5 @@ export default function PaymentRequestDetail() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

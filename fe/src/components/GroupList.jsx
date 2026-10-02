@@ -69,9 +69,6 @@ export default function GroupList({
       <div className="grid grid-cols-1 gap-4">
         {groups.map((group) => {
           const isSelected = selectedGroupId === group.id;
-          const userBalance = group.myBalance ?? 0;
-          const isPositive = userBalance > 0;
-          const isZero = userBalance === 0;
 
           return (
             <div
@@ -102,26 +99,57 @@ export default function GroupList({
                 <p className="text-xs text-slate-500 mb-3">{group.description}</p>
               )}
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-                <div className="text-slate-600 font-medium flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{group.memberCount ?? group.members?.length ?? "—"} thành viên</span>
+              <div className="pt-3 border-t border-slate-100 text-xs space-y-2">
+                <div className="flex items-center justify-between text-slate-600 font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{group.memberCount ?? group.members?.length ?? "—"} thành viên</span>
+                  </div>
+                  {group.members && group.members.length > 0 && (
+                    <span className="text-[11px] text-slate-400 font-normal">Số dư trong nhóm</span>
+                  )}
                 </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-slate-400 block font-normal">Số dư trong nhóm</span>
-                  <span
-                    className={`font-extrabold text-sm sm:text-base ${
-                      isZero
-                        ? "text-slate-600"
-                        : isPositive
-                        ? "text-emerald-600"
-                        : "text-rose-600"
-                    }`}
-                  >
-                    {isPositive ? "+" : ""}
-                    {formatVND(userBalance)}
-                  </span>
-                </div>
+
+                {group.members && group.members.length > 0 && (
+                  <div className="space-y-1.5 pt-0.5">
+                    {group.members.map((m) => {
+                      const bal = m.balance ?? 0;
+                      const isPos = bal > 0;
+                      const isZero = bal === 0;
+                      const isMe = currentUser && (m.userId === currentUser.id || m.email === currentUser.email);
+
+                      return (
+                        <div
+                          key={m.id || m.userId || m.email}
+                          className="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-slate-50/80 border border-slate-200/60"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold text-slate-800 truncate">
+                              {m.fullName || m.email}
+                            </span>
+                            {isMe && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                                Bạn
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`font-bold shrink-0 ml-2 ${
+                              isZero
+                                ? "text-slate-500"
+                                : isPos
+                                ? "text-emerald-600"
+                                : "text-rose-600"
+                            }`}
+                          >
+                            {isPos ? "+" : ""}
+                            {formatVND(bal)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="mt-3.5 pt-3 border-t border-slate-100/80 flex flex-wrap items-center justify-between gap-2">
