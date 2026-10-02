@@ -228,7 +228,7 @@ export default function GroupStatementDetail() {
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-400">
             <Calendar className="w-10 h-10 mx-auto text-slate-300 mb-2" />
             <p className="text-sm font-medium">Nhóm này chưa có kỳ sao kê nào được chốt.</p>
-            <p className="text-xs text-slate-400 mt-1">Hệ thống sẽ tự động chốt sao kê vào 08:30 ngày đến hạn hoặc khi trưởng nhóm tất toán trước hạn.</p>
+            <p className="text-xs text-slate-400 mt-1">Hệ thống sẽ tự động chốt sao kê vào 09:00 ngày đến hạn hoặc khi trưởng nhóm tất toán trước hạn.</p>
           </div>
         ) : (
           <div className="space-y-6">

@@ -217,8 +217,8 @@ export default function AdminOutbox() {
             >
               <option value="">Tất cả loại email</option>
               <option value="INVOICE_DIGEST">INVOICE_DIGEST (08:00)</option>
-              <option value="STATEMENT">STATEMENT (08:30)</option>
-              <option value="DEBT_REMINDER">DEBT_REMINDER (09:00)</option>
+              <option value="DEBT_REMINDER">DEBT_REMINDER (08:30)</option>
+              <option value="STATEMENT">STATEMENT (09:00)</option>
               <option value="PAYMENT_CONFIRMED">PAYMENT_CONFIRMED</option>
               <option value="PAYMENT_APPROVED">PAYMENT_APPROVED</option>
               <option value="PAYMENT_REJECTED">PAYMENT_REJECTED</option>

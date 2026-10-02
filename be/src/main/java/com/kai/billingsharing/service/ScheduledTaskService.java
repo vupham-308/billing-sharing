@@ -58,13 +58,13 @@ public class ScheduledTaskService {
     }
 
     /**
-     * Chạy vào 08:30 AM hàng ngày (UTC+7):
+     * Chạy vào 09:00 AM hàng ngày (UTC+7):
      * 1. Chỉ áp dụng cho các ngày từ 1 đến 27.
      * 2. Quản lý kỳ chuẩn xác (startDate lấy endDate kỳ trước, lưu snapshotJson).
      * 3. Mỗi PaymentRequest sinh đúng 1 mã VietQR riêng biệt kèm đúng số tiền (tuyệt đối không gộp).
      * 4. Ghi nhận vào EmailOutbox với type = STATEMENT.
      */
-    @Scheduled(cron = "0 30 8 * * ?", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "0 0 9 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional
     public void processMonthlyGroupSummary() {
         LocalDate todayDate = LocalDate.now(businessClock);
@@ -75,12 +75,12 @@ public class ScheduledTaskService {
             return;
         }
 
-        log.info("Bắt đầu tiến trình 08:30 sáng tổng hợp sao kê nhóm cho ngày: {}", today);
+        log.info("Bắt đầu tiến trình 09:00 sáng tổng hợp sao kê nhóm cho ngày: {}", today);
         List<Group> groups = groupRepository.findBySummaryDayOfMonth(today);
 
         for (Group group : groups) {
             try {
-                processSummaryForGroup(group, todayDate.atTime(8, 30));
+                processSummaryForGroup(group, todayDate.atTime(9, 0));
             } catch (Exception e) {
                 log.error("Lỗi khi tổng hợp sao kê cho nhóm {}: {}", group.getName(), e.getMessage(), e);
             }
@@ -149,7 +149,7 @@ public class ScheduledTaskService {
         // 1. Xác định mốc kỳ sao kê (StatementPeriod)
         Optional<StatementPeriod> lastPeriodOpt = statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId());
         LocalDateTime startDate = lastPeriodOpt.map(StatementPeriod::getEndDate)
-                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : endDate.minusMonths(1).with(LocalTime.of(8, 30, 0)));
+                .orElse(group.getCreatedAt() != null ? group.getCreatedAt() : endDate.minusMonths(1).with(LocalTime.of(9, 0, 0)));
         int periodNumber = lastPeriodOpt.map(p -> p.getPeriodNumber() + 1).orElse(1);
         String periodDebtTitle = formatPeriodTitle(startDate, endDate);
 
@@ -728,16 +728,16 @@ public class ScheduledTaskService {
     }
 
     /**
-     * Chạy vào 09:00 AM hàng ngày:
+     * Chạy vào 08:30 AM hàng ngày:
      * 1. Gom toàn bộ khoản nợ PENDING của 1 người trên TẤT CẢ CÁC NHÓM vào duy nhất 01 email.
      * 2. Mỗi khoản nợ hiển thị đúng mã VietQR riêng, số tiền riêng, tên hóa đơn, tên nhóm.
      * 3. Lưu paymentRequestIds vào payloadJson để phục vụ Just-In-Time check khi gửi.
      */
-    @Scheduled(cron = "0 0 9 * * ?", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "0 30 8 * * ?", zone = "Asia/Ho_Chi_Minh")
     @Transactional(readOnly = true)
     public void sendDailyPendingReminders() {
         LocalDate todayDate = LocalDate.now(businessClock);
-        log.info("Bắt đầu tiến trình 09:00 sáng nhắc nhở các yêu cầu thanh toán PENDING ngày {}...", todayDate);
+        log.info("Bắt đầu tiến trình 08:30 sáng nhắc nhở các yêu cầu thanh toán PENDING ngày {}...", todayDate);
 
         List<PaymentRequest> pendingRequests = paymentRequestRepository.findByStatus(PaymentRequestStatus.PENDING);
         if (pendingRequests.isEmpty()) {
