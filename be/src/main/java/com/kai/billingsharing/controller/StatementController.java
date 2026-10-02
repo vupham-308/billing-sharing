@@ -6,6 +6,9 @@ import com.kai.billingsharing.entity.Transaction;
 import com.kai.billingsharing.entity.TransactionSharingMember;
 import com.kai.billingsharing.entity.enums.Role;
 import com.kai.billingsharing.exception.AppException;
+import com.kai.billingsharing.entity.PaymentRequest;
+import com.kai.billingsharing.entity.enums.PaymentRequestStatus;
+import com.kai.billingsharing.repository.PaymentRequestRepository;
 import com.kai.billingsharing.repository.GroupMemberRepository;
 import com.kai.billingsharing.repository.StatementPeriodRepository;
 import com.kai.billingsharing.repository.TransactionRepository;
@@ -32,6 +35,7 @@ public class StatementController {
     private final GroupMemberRepository groupMemberRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionSharingMemberRepository sharingMemberRepository;
+    private final PaymentRequestRepository paymentRequestRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -122,17 +126,20 @@ public class StatementController {
 
             boolean isUserInShares = false;
             long userShare = 0L;
+            boolean currentUserIsPaid = false;
             List<Map<String, Object>> memberShares = new ArrayList<>();
             for (TransactionSharingMember sm : shares) {
+                boolean smPaid = Boolean.TRUE.equals(sm.getIsPaid());
                 if (sm.getUser().getId().equals(currentUser.getId())) {
                     userShare = sm.getShareAmount();
                     isUserInShares = true;
+                    currentUserIsPaid = smPaid;
                 }
                 Map<String, Object> smMap = new LinkedHashMap<>();
                 smMap.put("userId", sm.getUser().getId());
                 smMap.put("userName", sm.getUser().getFullName());
                 smMap.put("shareAmount", sm.getShareAmount());
-                smMap.put("isPaid", Boolean.TRUE.equals(sm.getIsPaid()));
+                smMap.put("isPaid", smPaid);
                 memberShares.add(smMap);
             }
 
@@ -150,6 +157,7 @@ public class StatementController {
             txMap.put("createdAt", t.getCreatedAt());
             txMap.put("isUserPayer", isUserPayer);
             txMap.put("currentUserShare", userShare);
+            txMap.put("currentUserIsPaid", currentUserIsPaid);
             txMap.put("shares", memberShares);
 
             userTotalShare += userShare;
@@ -181,21 +189,59 @@ public class StatementController {
         if (snapshotObj instanceof Map<?, ?> snapMap) {
             Object itemsObj = snapMap.get("items");
             if (itemsObj instanceof List<?> itemsList) {
+                List<UUID> requestIds = new ArrayList<>();
                 for (Object itemObj : itemsList) {
                     if (itemObj instanceof Map<?, ?> itemMap) {
-                        String debtorIdStr = String.valueOf(itemMap.get("debtorId"));
-                        String creditorIdStr = String.valueOf(itemMap.get("creditorId"));
+                        Object reqIdVal = itemMap.get("requestId");
+                        if (reqIdVal != null) {
+                            try {
+                                requestIds.add(UUID.fromString(reqIdVal.toString()));
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                Map<UUID, PaymentRequest> prMap = requestIds.isEmpty() ? Map.of()
+                        : paymentRequestRepository.findAllById(requestIds).stream()
+                                .collect(Collectors.toMap(PaymentRequest::getId, p -> p));
+
+                for (Object itemObj : itemsList) {
+                    if (itemObj instanceof Map<?, ?> itemMap) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> mutableItemMap = (Map<String, Object>) itemMap;
+                        String debtorIdStr = String.valueOf(mutableItemMap.get("debtorId"));
+                        String creditorIdStr = String.valueOf(mutableItemMap.get("creditorId"));
                         String myIdStr = currentUser.getId().toString();
 
-                        Number amtNum = (Number) itemMap.get("amount");
+                        Object reqIdVal = mutableItemMap.get("requestId");
+                        boolean isPaid = false;
+                        if (reqIdVal != null) {
+                            try {
+                                UUID reqId = UUID.fromString(reqIdVal.toString());
+                                PaymentRequest pr = prMap.get(reqId);
+                                if (pr != null) {
+                                    mutableItemMap.put("status", pr.getStatus().name());
+                                    if (pr.getStatus() == PaymentRequestStatus.COMPLETED) {
+                                        isPaid = true;
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        if (!isPaid) {
+                            isPaid = "COMPLETED".equalsIgnoreCase(String.valueOf(mutableItemMap.get("status")))
+                                    || "PAID".equalsIgnoreCase(String.valueOf(mutableItemMap.get("status")));
+                        }
+                        mutableItemMap.put("isPaid", isPaid);
+
+                        Number amtNum = (Number) mutableItemMap.get("amount");
                         long amt = amtNum != null ? amtNum.longValue() : 0L;
 
                         if (myIdStr.equalsIgnoreCase(debtorIdStr)) {
                             totalToTransfer += amt;
-                            myPaymentRequestsToPay.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
+                            myPaymentRequestsToPay.add(new LinkedHashMap<>(mutableItemMap));
                         } else if (myIdStr.equalsIgnoreCase(creditorIdStr)) {
                             totalToReceive += amt;
-                            myPaymentRequestsToReceive.add(new LinkedHashMap<>((Map<String, Object>) itemMap));
+                            myPaymentRequestsToReceive.add(new LinkedHashMap<>(mutableItemMap));
                         }
                     }
                 }

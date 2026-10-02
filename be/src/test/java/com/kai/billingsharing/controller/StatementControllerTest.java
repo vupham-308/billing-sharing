@@ -44,6 +44,9 @@ class StatementControllerTest {
     @Mock
     private TransactionSharingMemberRepository sharingMemberRepository;
 
+    @Mock
+    private com.kai.billingsharing.repository.PaymentRequestRepository paymentRequestRepository;
+
     @InjectMocks
     private StatementController statementController;
 

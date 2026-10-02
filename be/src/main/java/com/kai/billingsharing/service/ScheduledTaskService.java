@@ -309,12 +309,14 @@ public class ScheduledTaskService {
             String formula;
             String nettingDetailNote = null;
             if (edge.transferredDebtAmount > 0) {
-                nettingDetailNote = "Nhận nợ thay " + edge.transferredUser.getFullName() + " trả " + creditor.getFullName() + ": +" + EmailService.money(edge.transferredDebtAmount) + "đ";
+                // Ở row của người nhận nợ (Thành): không cần chú thích
+                nettingDetailNote = null;
                 formula = EmailService.money(edge.directDebtAmount) + "đ (Nợ gốc " + creditor.getFullName() + ") + "
                         + EmailService.money(edge.transferredDebtAmount) + "đ (Nhận nợ thay " + edge.transferredUser.getFullName() + ") = "
                         + EmailService.money(netAmount) + " VND";
             } else if (edge.offsetCreditAmount > 0) {
-                nettingDetailNote = "Cấn trừ chuyển nợ sang " + edge.transferredUser.getFullName() + " trả thay " + creditor.getFullName() + ": -" + EmailService.money(edge.offsetCreditAmount) + "đ";
+                // Ở row của người được giảm nợ (Minh): ghi rõ "Đã cấn trừ khoản nợ của [Tên]: -[Số tiền]đ"
+                nettingDetailNote = "Đã cấn trừ khoản nợ của " + edge.transferredUser.getFullName() + ": -" + EmailService.money(edge.offsetCreditAmount) + "đ";
                 formula = EmailService.money(edge.directDebtAmount) + "đ (Nợ gốc " + creditor.getFullName() + ") - "
                         + EmailService.money(edge.offsetCreditAmount) + "đ (Cấn trừ " + edge.transferredUser.getFullName() + " trả thay) = "
                         + EmailService.money(netAmount) + " VND";

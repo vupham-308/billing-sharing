@@ -144,6 +144,7 @@ class MultilateralNettingTest {
         assertNotNull(brA);
         assertEquals(10_000L, brA.getTransferredDebtAmount());
         assertEquals(userB.getId(), brA.getTransferredDebtorId());
+        assertNull(brA.getNettingDetailNote());
         assertTrue(brA.getFormula().contains("100.000") && brA.getFormula().contains("10.000") && brA.getFormula().contains("110.000"));
 
         // Kiểm tra PR của B: nợ C 40k
@@ -153,6 +154,7 @@ class MultilateralNettingTest {
         assertNotNull(brB);
         assertEquals(10_000L, brB.getOffsetCreditAmount());
         assertEquals(userA.getId(), brB.getTransferredDebtorId());
+        assertEquals("Đã cấn trừ khoản nợ của " + userA.getFullName() + ": -10.000đ", brB.getNettingDetailNote());
         assertTrue(brB.getFormula().contains("50.000") && brB.getFormula().contains("10.000") && brB.getFormula().contains("40.000"));
 
         // Kiểm tra gửi Email Outbox: Có cả người nợ (A, B) và người nhận (C)
@@ -280,14 +282,20 @@ class MultilateralNettingTest {
         // Hóa đơn của A vẫn là UNPAID
         assertFalse(shareAB.getIsPaid());
 
-        // Kiểm tra đã tạo giao dịch trung gian Payer B -> Debtor A (10k)
+        // Kiểm tra đã tạo giao dịch trung gian Payer C (Vũ) -> Debtor B (Minh) (10k)
         ArgumentCaptor<Transaction> txCaptor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(txCaptor.capture());
         Transaction savedInterim = txCaptor.getValue();
-        assertEquals(userB, savedInterim.getPayer());
+        assertEquals(userC, savedInterim.getPayer());
         assertEquals(10_000L, savedInterim.getTotalAmount());
-        assertEquals("NETTING_INTERIM_B_TO_A", savedInterim.getAdjustmentType());
+        assertEquals("NETTING_INTERIM_C_TO_B", savedInterim.getAdjustmentType());
+        assertTrue(savedInterim.getTitle().contains(userC.getFullName()));
+        assertTrue(savedInterim.getTitle().contains(userA.getFullName()));
         assertEquals(prAId, savedInterim.getRelatedPaymentRequestId());
+
+        ArgumentCaptor<TransactionSharingMember> smCaptor = ArgumentCaptor.forClass(TransactionSharingMember.class);
+        verify(sharingMemberRepository).save(smCaptor.capture());
+        assertEquals(userB, smCaptor.getValue().getUser());
 
         // 2. Sau đó A chuyển khoản thành công cho C (110k)
         when(sharingMemberRepository.findById(shareABId)).thenReturn(Optional.of(shareAB));

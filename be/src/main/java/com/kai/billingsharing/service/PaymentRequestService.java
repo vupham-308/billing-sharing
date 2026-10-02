@@ -586,8 +586,10 @@ public class PaymentRequestService {
                 Group group = saved.getGroup() != null ? saved.getGroup() : (saved.getTransaction() != null ? saved.getTransaction().getGroup() : null);
 
                 if (userB != null && userC != null && group != null) {
+                    User userA = saved.getDebtor();
+                    String title = "[Cấn trừ sao kê] " + userB.getFullName() + " cấn trừ qua " + userC.getFullName() + " (" + userA.getFullName() + " đã trả thay)";
                     Transaction interimTx = Transaction.builder()
-                            .title("[Cấn trừ sao kê] B cấn trừ qua C (A đã trả thay)")
+                            .title(title)
                             .totalAmount(breakdown.getTransferredDebtAmount())
                             .payer(userB)
                             .group(group)
@@ -604,8 +606,8 @@ public class PaymentRequestService {
                             .isPaid(false)
                             .build();
                     sharingMemberRepository.save(interimShare);
-                    log.info("Đã tạo giao dịch điều chỉnh trung gian B->C (id={}, số tiền={}) vì A đã chuyển nhưng B chưa chuyển",
-                            savedTx.getId(), breakdown.getTransferredDebtAmount());
+                    log.info("Đã tạo giao dịch điều chỉnh trung gian {} (id={}, số tiền={}) vì {} đã chuyển nhưng {} chưa chuyển",
+                            title, savedTx.getId(), breakdown.getTransferredDebtAmount(), userA.getFullName(), userB.getFullName());
                 }
             }
         }
@@ -618,32 +620,34 @@ public class PaymentRequestService {
             // Nếu A chưa chuyển thành công (linkedPr chưa COMPLETED)
             if (linkedPr != null && linkedPr.getStatus() != PaymentRequestStatus.COMPLETED) {
                 User userB = saved.getDebtor(); // B
+                User userC = saved.getCreditor(); // C
                 User userA = breakdown.getTransferredDebtorId() != null
                         ? userRepository.findById(breakdown.getTransferredDebtorId()).orElse(null)
-                        : null;
+                        : null; // A
                 Group group = saved.getGroup() != null ? saved.getGroup() : (saved.getTransaction() != null ? saved.getTransaction().getGroup() : null);
 
                 if (userB != null && userA != null && group != null) {
+                    String title = "[Cấn trừ sao kê] " + userC.getFullName() + " tạm ứng nợ của " + userA.getFullName() + " (chờ " + userA.getFullName() + " trả " + userC.getFullName() + ")";
                     Transaction interimTx = Transaction.builder()
-                            .title("[Cấn trừ sao kê] B tạm ứng nợ cho A (chờ A trả C)")
+                            .title(title)
                             .totalAmount(breakdown.getOffsetCreditAmount())
-                            .payer(userB)
+                            .payer(userC)
                             .group(group)
                             .isAdjustment(true)
-                            .adjustmentType("NETTING_INTERIM_B_TO_A")
+                            .adjustmentType("NETTING_INTERIM_C_TO_B")
                             .relatedPaymentRequestId(linkedPr.getId()) // Gắn với PR của A để khi A chuyển sẽ tự động xóa
                             .build();
                     Transaction savedTx = transactionRepository.save(interimTx);
 
                     TransactionSharingMember interimShare = TransactionSharingMember.builder()
                             .transaction(savedTx)
-                            .user(userA)
+                            .user(userB)
                             .shareAmount(breakdown.getOffsetCreditAmount())
                             .isPaid(false)
                             .build();
                     sharingMemberRepository.save(interimShare);
-                    log.info("Đã tạo giao dịch điều chỉnh trung gian B->A (id={}, số tiền={}) vì B đã chuyển nhưng A chưa chuyển",
-                            savedTx.getId(), breakdown.getOffsetCreditAmount());
+                    log.info("Đã tạo giao dịch điều chỉnh trung gian {} (id={}, số tiền={}) vì {} đã chuyển nhưng {} chưa chuyển",
+                            title, savedTx.getId(), breakdown.getOffsetCreditAmount(), userB.getFullName(), userA.getFullName());
                 }
             }
         }

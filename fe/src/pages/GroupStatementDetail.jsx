@@ -381,117 +381,166 @@ export default function GroupStatementDetail() {
                       Các khoản bạn cần chuyển khoản ({myPaymentRequests.length} người nhận)
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {myPaymentRequests.map((req, idx) => (
-                        <div
-                          key={req.requestId || idx}
-                          className="p-4 rounded-xl border border-rose-200 bg-rose-50/20 space-y-3"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="text-xs text-slate-500 block">Chuyển đến:</span>
-                              <span className="text-sm font-bold text-slate-900">{req.creditorName}</span>
-                              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-md inline-block mt-1">
-                                {req.periodTitle || periodDebtTitle || req.transactionTitle || "Kỳ sao kê"}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs text-slate-500 block">Số tiền:</span>
-                              <span className="text-base font-extrabold text-rose-600">
-                                {formatVND(req.amount)}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Chi tiết cấn trừ đa phương nếu có */}
-                          {(() => {
-                            let br = req.breakdown;
-                            if (typeof br === "string") {
-                              try { br = JSON.parse(br); } catch (e) { br = null; }
-                            }
-                            if (!br) return null;
-                            if (br.transferredDebtAmount > 0 || br.offsetCreditAmount > 0 || br.nettingDetailNote) {
-                              return (
-                                <div className="p-2.5 bg-indigo-50/70 rounded-lg border border-indigo-100 text-[11px] space-y-1">
-                                  <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
-                                    <span>Cấn trừ đa phương:</span>
-                                  </div>
-                                  {br.nettingDetailNote && (
-                                    <p className="text-indigo-800 font-medium">{br.nettingDetailNote}</p>
-                                  )}
-                                  {br.formula && (
-                                    <p className="text-slate-600 font-mono text-[10px]">{br.formula}</p>
-                                  )}
+                      {myPaymentRequests.map((req, idx) => {
+                        const isPaid = req.status === "COMPLETED" || req.status === "PAID" || req.isPaid === true;
+                        return (
+                          <div
+                            key={req.requestId || idx}
+                            className={`p-4 rounded-xl border space-y-3 ${
+                              isPaid
+                                ? "border-emerald-200 bg-emerald-50/20"
+                                : "border-rose-200 bg-rose-50/20"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <span className="text-xs text-slate-500 block">Chuyển đến:</span>
+                                <span className="text-sm font-bold text-slate-900">{req.creditorName}</span>
+                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                  <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-md inline-block">
+                                    {req.periodTitle || periodDebtTitle || req.transactionTitle || "Kỳ sao kê"}
+                                  </span>
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                                      isPaid
+                                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                        : "bg-amber-100 text-amber-800 border border-amber-200"
+                                    }`}
+                                  >
+                                    {isPaid ? (
+                                      <>
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                        <span>Đã thanh toán</span>
+                                      </>
+                                    ) : (
+                                      <span>Chờ thanh toán</span>
+                                    )}
+                                  </span>
                                 </div>
-                              );
-                            }
-                            return null;
-                          })()}
-
-                          {/* Thông tin chuyển khoản */}
-                          {req.accountNumber ? (
-                            <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Ngân hàng:</span>
-                                <span className="font-semibold text-slate-800">
-                                  {req.bankName || req.bankCode}
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-slate-500 block">Số tiền:</span>
+                                <span className={`text-base font-extrabold ${isPaid ? "text-slate-600" : "text-rose-600"}`}>
+                                  {formatVND(req.amount)}
                                 </span>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Số tài khoản:</span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono font-bold text-slate-900">{req.accountNumber}</span>
-                                  <button
-                                    onClick={() => handleCopy(req.accountNumber, `stk-${idx}`)}
-                                    className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
-                                    title="Sao chép STK"
-                                  >
-                                    {copiedField === `stk-${idx}` ? (
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="w-3 h-3" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Chủ tài khoản:</span>
-                                <span className="font-medium text-slate-700">{req.accountHolderName}</span>
-                              </div>
-                              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                                <span className="text-slate-500">Nội dung CK:</span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono font-bold text-indigo-700">{req.description}</span>
-                                  <button
-                                    onClick={() => handleCopy(req.description, `nd-${idx}`)}
-                                    className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
-                                    title="Sao chép nội dung"
-                                  >
-                                    {copiedField === `nd-${idx}` ? (
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                    ) : (
-                                      <Copy className="w-3 h-3" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
                             </div>
-                          ) : (
-                            <p className="text-xs text-amber-600 italic">Người nhận chưa thiết lập thông tin ngân hàng.</p>
-                          )}
 
-                          {/* Nút quét mã VietQR */}
-                          {req.accountNumber && (
-                            <button
-                              onClick={() => handleOpenQr(req)}
-                              className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                            >
-                              <QrCode className="w-4 h-4" />
-                              <span>Quét mã VietQR chuyển tiền</span>
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                            {/* Chi tiết cấn trừ đa phương nếu có */}
+                            {(() => {
+                              let br = req.breakdown;
+                              if (typeof br === "string") {
+                                try { br = JSON.parse(br); } catch (e) { br = null; }
+                              }
+                              if (!br) return null;
+
+                              // Ở row người nhận nợ (Thành): không cần chú thích
+                              if (br.transferredDebtAmount > 0 || br.nettingDetailNote?.includes("Nhận nợ thay")) {
+                                return null;
+                              }
+
+                              // Ở row người được cấn trừ (Minh): hiển thị rõ ràng
+                              if (br.offsetCreditAmount > 0) {
+                                const debtAmountFormatted = formatVND(br.offsetCreditAmount);
+                                const noteText = `Đã cấn trừ khoản nợ của ${br.transferredDebtorName || "thành viên"}: -${debtAmountFormatted}`;
+                                return (
+                                  <div className="p-2.5 bg-indigo-50/70 rounded-lg border border-indigo-100 text-[11px] space-y-1">
+                                    <div className="font-semibold text-indigo-900 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
+                                      <span>{noteText}</span>
+                                    </div>
+                                    {br.formula && (
+                                      <p className="text-slate-600 font-mono text-[10px]">{br.formula}</p>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (br.nettingDetailNote) {
+                                return (
+                                  <div className="p-2.5 bg-indigo-50/70 rounded-lg border border-indigo-100 text-[11px] space-y-1">
+                                    <p className="text-indigo-800 font-medium">{br.nettingDetailNote}</p>
+                                    {br.formula && (
+                                      <p className="text-slate-600 font-mono text-[10px]">{br.formula}</p>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+
+                            {/* Thông tin chuyển khoản */}
+                            {req.accountNumber ? (
+                              <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-500">Ngân hàng:</span>
+                                  <span className="font-semibold text-slate-800">
+                                    {req.bankName || req.bankCode}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-500">Số tài khoản:</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-slate-900">{req.accountNumber}</span>
+                                    <button
+                                      onClick={() => handleCopy(req.accountNumber, `stk-${idx}`)}
+                                      className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
+                                      title="Sao chép STK"
+                                    >
+                                      {copiedField === `stk-${idx}` ? (
+                                        <Check className="w-3 h-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-500">Chủ tài khoản:</span>
+                                  <span className="font-medium text-slate-700">{req.accountHolderName}</span>
+                                </div>
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                                  <span className="text-slate-500">Nội dung CK:</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-indigo-700">{req.description}</span>
+                                    <button
+                                      onClick={() => handleCopy(req.description, `nd-${idx}`)}
+                                      className="p-0.5 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
+                                      title="Sao chép nội dung"
+                                    >
+                                      {copiedField === `nd-${idx}` ? (
+                                        <Check className="w-3 h-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-amber-600 italic">Người nhận chưa thiết lập thông tin ngân hàng.</p>
+                            )}
+
+                            {/* Nút quét mã VietQR hoặc thông báo đã trả */}
+                            {req.accountNumber && (
+                              isPaid ? (
+                                <div className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-semibold">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  <span>Khoản này đã được thanh toán</span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenQr(req)}
+                                  className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <QrCode className="w-4 h-4" />
+                                  <span>Quét mã VietQR chuyển tiền</span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : totalToReceive > 0 ? (
@@ -510,34 +559,48 @@ export default function GroupStatementDetail() {
                           Chi tiết các khoản sẽ chuyển cho bạn ({incomingPayments.length} người)
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          {incomingPayments.map((req, idx) => (
-                            <div
-                              key={req.requestId || idx}
-                              className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/30 flex items-center justify-between"
-                            >
-                              <div>
-                                <span className="text-xs text-slate-500 block">Người chuyển:</span>
-                                <span className="text-sm font-bold text-slate-900">{req.debtorName}</span>
-                                <div className="mt-1">
-                                  <span
-                                    className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                                      req.status === "PAID"
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : "bg-amber-100 text-amber-800"
-                                    }`}
-                                  >
-                                    {req.status === "PAID" ? "Đã nhận tiền" : "Chờ thanh toán"}
+                          {incomingPayments.map((req, idx) => {
+                            const isPaid = req.status === "COMPLETED" || req.status === "PAID" || req.isPaid === true;
+                            return (
+                              <div
+                                key={req.requestId || idx}
+                                className={`p-3.5 rounded-xl border flex items-center justify-between transition-colors ${
+                                  isPaid
+                                    ? "border-emerald-200 bg-emerald-50/40"
+                                    : "border-emerald-200 bg-emerald-50/20"
+                                }`}
+                              >
+                                <div>
+                                  <span className="text-xs text-slate-500 block">Người chuyển:</span>
+                                  <span className="text-sm font-bold text-slate-900">{req.debtorName}</span>
+                                  <div className="mt-1">
+                                    <span
+                                      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                                        isPaid
+                                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                                      }`}
+                                    >
+                                      {isPaid ? (
+                                        <>
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                          <span>Đã thanh toán</span>
+                                        </>
+                                      ) : (
+                                        <span>Chờ thanh toán</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs text-slate-500 block">Số tiền:</span>
+                                  <span className="text-base font-extrabold text-emerald-600">
+                                    +{formatVND(req.amount)}
                                   </span>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <span className="text-xs text-slate-500 block">Số tiền:</span>
-                                <span className="text-base font-extrabold text-emerald-600">
-                                  +{formatVND(req.amount)}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -631,9 +694,25 @@ export default function GroupStatementDetail() {
                             <td className="px-4 py-3">
                               {hasUserShare ? (
                                 <div>
-                                  <span className="font-bold text-rose-600 text-sm">
-                                    {formatVND(tx.currentUserShare)}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-rose-600 text-sm">
+                                      {formatVND(tx.currentUserShare)}
+                                    </span>
+                                    {(() => {
+                                      const myShare = (tx.shares || []).find((s) => s.userId === user?.id);
+                                      const isSharePaid = tx.currentUserIsPaid ?? myShare?.isPaid ?? tx.isPaid;
+                                      return isSharePaid ? (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                          <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                          Đã thanh toán
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                                          Chưa thanh toán
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                   {tx.isUserPayer && (
                                     <span className="block text-[10px] text-slate-500">
                                       (Bạn đã ứng cả hóa đơn)
@@ -642,7 +721,13 @@ export default function GroupStatementDetail() {
                                 </div>
                               ) : tx.isUserPayer ? (
                                 <div>
-                                  <span className="font-semibold text-emerald-600">0 ₫</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-semibold text-emerald-600">0 ₫</span>
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                      Đã thanh toán
+                                    </span>
+                                  </div>
                                   <span className="block text-[10px] text-slate-500">
                                     (Bạn đã ứng cả hóa đơn)
                                   </span>
@@ -658,9 +743,18 @@ export default function GroupStatementDetail() {
                                 {(tx.shares || []).map((s, idx) => (
                                   <span
                                     key={s.userId || idx}
-                                    className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200"
+                                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                      s.isPaid
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200 font-medium"
+                                        : "bg-slate-100 text-slate-700 border-slate-200"
+                                    }`}
                                   >
-                                    {s.userName}: {formatVND(s.shareAmount)}
+                                    <span>{s.userName}: {formatVND(s.shareAmount)}</span>
+                                    {s.isPaid && (
+                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                                        Đã trả
+                                      </span>
+                                    )}
                                   </span>
                                 ))}
                               </div>
@@ -722,7 +816,7 @@ export default function GroupStatementDetail() {
                       </tr>
                     ) : (
                       snapshotItems.map((item, idx) => {
-                        const isPending = item.status === "PENDING";
+                        const isPaid = item.status === "COMPLETED" || item.status === "PAID" || item.isPaid === true;
                         const debtTitle = item.periodTitle || periodDebtTitle || item.transactionTitle || "Kỳ sao kê";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
@@ -730,17 +824,35 @@ export default function GroupStatementDetail() {
                               <p className="truncate font-semibold text-slate-900" title={item.transactionTitle ? `Giao dịch gốc: ${item.transactionTitle}` : debtTitle}>
                                 {debtTitle}
                               </p>
-                              <span className={`inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded-sm ${
-                                isPending ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-blue-50 text-blue-700 border border-blue-200"
+                              <span className={`inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${
+                                isPaid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
                               }`}>
-                                {item.status}
+                                {isPaid ? "Đã thanh toán" : "Chờ thanh toán"}
                               </span>
                               {(() => {
                                 let br = item.breakdown;
                                 if (typeof br === "string") {
                                   try { br = JSON.parse(br); } catch (e) { br = null; }
                                 }
-                                if (br?.nettingDetailNote) {
+                                if (!br) return null;
+
+                                // Ở row của người nhận nợ (Thành): không cần chú thích
+                                if (br.transferredDebtAmount > 0 || br.nettingDetailNote?.includes("Nhận nợ thay")) {
+                                  return null;
+                                }
+
+                                // Ở row của người được giảm nợ (Minh): ghi rõ "Đã cấn trừ khoản nợ của [Tên]: -[Số tiền]"
+                                if (br.offsetCreditAmount > 0) {
+                                  const targetName = br.transferredDebtorName || "thành viên";
+                                  const noteText = `Đã cấn trừ khoản nợ của ${targetName}: -${formatVND(br.offsetCreditAmount)}`;
+                                  return (
+                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 w-fit" title={br.formula || noteText}>
+                                      {noteText}
+                                    </span>
+                                  );
+                                }
+
+                                if (br.nettingDetailNote) {
                                   return (
                                     <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded block mt-1 w-fit" title={br.formula || br.nettingDetailNote}>
                                       {br.nettingDetailNote}
