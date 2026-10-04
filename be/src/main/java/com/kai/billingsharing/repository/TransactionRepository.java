@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+public interface TransactionRepository extends JpaRepository<Transaction, UUID>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<Transaction> {
 
     List<Transaction> findByGroupId(UUID groupId);
 

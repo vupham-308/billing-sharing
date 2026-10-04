@@ -263,6 +263,13 @@ public class ScheduledTaskService {
                     edgeAC.transferredDebtAmount += k;
                     edgeAC.transferredUser = userB;
                     edgeAC.transferredShares.addAll(edgeAB.debtShares);
+                    // When A-B is fully transferred, no A-B request remains to
+                    // settle its reverse-direction shares. Transfer those too,
+                    // so both directions close when A completes the replacement payment.
+                    // For a partial transfer, the remaining A-B request owns them.
+                    if (edgeAB.netAmount == 0L) {
+                        edgeAC.transferredShares.addAll(edgeAB.nettedShares);
+                    }
 
                     log.info("Cấn trừ đa phương thành công: {} nợ {} ({}đ) chuyển sang trả {} thay cho {}. {} nợ {} còn {}đ, {} nợ {} thành {}đ",
                             userA.getFullName(), userB.getFullName(), k,

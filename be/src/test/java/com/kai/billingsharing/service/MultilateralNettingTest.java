@@ -310,4 +310,57 @@ class MultilateralNettingTest {
         verify(sharingMemberRepository).deleteByTransactionId(interimTx.getId());
         verify(transactionRepository).delete(interimTx);
     }
+
+    @Test
+    @DisplayName("Repro 100/500/500: A trả 600 và B trả 400 phải đóng cả ba phần chia")
+    void reproduce100_500_500BothPaymentsCloseAllShares() throws Exception {
+        Transaction txAB = Transaction.builder().id(UUID.randomUUID()).title("B chi cho A").payer(userB).group(group).totalAmount(100_000L).build();
+        TransactionSharingMember shareAB = TransactionSharingMember.builder().id(UUID.randomUUID()).transaction(txAB).user(userA).shareAmount(100_000L).isPaid(false).build();
+        Transaction txAC = Transaction.builder().id(UUID.randomUUID()).title("C chi cho A").payer(userC).group(group).totalAmount(500_000L).build();
+        TransactionSharingMember shareAC = TransactionSharingMember.builder().id(UUID.randomUUID()).transaction(txAC).user(userA).shareAmount(500_000L).isPaid(false).build();
+        Transaction txBC = Transaction.builder().id(UUID.randomUUID()).title("C chi cho B").payer(userC).group(group).totalAmount(500_000L).build();
+        TransactionSharingMember shareBC = TransactionSharingMember.builder().id(UUID.randomUUID()).transaction(txBC).user(userB).shareAmount(500_000L).isPaid(false).build();
+
+        when(sharingMemberRepository.findByTransactionGroupIdAndIsPaidFalse(group.getId())).thenReturn(List.of(shareAB, shareAC, shareBC));
+        when(statementPeriodRepository.findTopByGroupIdOrderByEndDateDesc(group.getId())).thenReturn(Optional.empty());
+        Map<UUID, PaymentRequest> saved = new LinkedHashMap<>();
+        when(paymentRequestRepository.save(any(PaymentRequest.class))).thenAnswer(invocation -> {
+            PaymentRequest pr = invocation.getArgument(0);
+            if (pr.getId() == null) pr.setId(UUID.randomUUID());
+            saved.put(pr.getId(), pr);
+            return pr;
+        });
+        when(paymentRequestRepository.findByTransactionGroupIdAndStatusIn(eq(group.getId()), anyList()))
+                .thenAnswer(invocation -> new ArrayList<>(saved.values()));
+        lenient().when(emailService.getDashboardUrl()).thenReturn("https://test.com");
+
+        scheduledTaskService.processSummaryForGroup(group, LocalDateTime.now());
+
+        assertEquals(2, saved.size());
+        PaymentRequest prA = saved.values().stream().filter(pr -> pr.getDebtor().equals(userA)).findFirst().orElseThrow();
+        PaymentRequest prB = saved.values().stream().filter(pr -> pr.getDebtor().equals(userB)).findFirst().orElseThrow();
+        assertEquals(600_000L, prA.getAmount());
+        assertEquals(400_000L, prB.getAmount());
+        assertEquals(List.of(shareAC, shareAB), prA.getSharingMembers());
+        assertEquals(List.of(shareBC), prB.getSharingMembers());
+
+        // A thanh toán trước: A-B và A-C phải được đóng; hệ thống tạo điều chỉnh 100k cho B-C.
+        when(paymentRequestRepository.findById(prB.getId())).thenReturn(Optional.of(prB));
+        when(userRepository.findById(userB.getId())).thenReturn(Optional.of(userB));
+        when(groupMemberRepository.findByGroupIdAndUserId(any(), any())).thenReturn(Optional.empty());
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(i -> {
+            Transaction tx = i.getArgument(0);
+            if (tx.getId() == null) tx.setId(UUID.randomUUID());
+            return tx;
+        });
+        realPaymentRequestService.completePaymentInternal(prA, "MANUAL");
+        assertTrue(shareAB.getIsPaid(), "A-B phải PAID sau khi A trả 600");
+        assertTrue(shareAC.getIsPaid(), "A-C phải PAID sau khi A trả 600");
+        assertEquals(PaymentRequestStatus.COMPLETED, prA.getStatus());
+
+        when(transactionRepository.findByRelatedPaymentRequestId(prB.getId())).thenReturn(List.of());
+        realPaymentRequestService.completePaymentInternal(prB, "MANUAL");
+        assertTrue(shareBC.getIsPaid(), "B-C phải PAID sau khi B trả 400");
+        assertEquals(PaymentRequestStatus.COMPLETED, prB.getStatus());
+    }
 }

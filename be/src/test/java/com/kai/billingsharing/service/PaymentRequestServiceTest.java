@@ -255,4 +255,43 @@ class PaymentRequestServiceTest {
         assertEquals(50000L, res.getBreakdown().getNettedCredit());
         assertEquals(50000L, res.getBreakdown().getNetAmount());
     }
+
+    @Test
+    void testApprovePayment_MissingPrimaryShareInCollection_StillClearsPrimaryShare() {
+        UUID reqId = UUID.randomUUID();
+        TransactionSharingMember transferredShare = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .shareAmount(100000L)
+                .isPaid(false)
+                .user(debtor)
+                .build();
+        TransactionSharingMember directShare = TransactionSharingMember.builder()
+                .id(UUID.randomUUID())
+                .shareAmount(500000L)
+                .isPaid(false)
+                .user(debtor)
+                .build();
+
+        PaymentRequest request = PaymentRequest.builder()
+                .id(reqId)
+                .debtor(debtor)
+                .creditor(creditor)
+                // Mô phỏng join table thiếu share A-B, nhưng sharing_member_id vẫn trỏ tới nó.
+                .sharingMembers(java.util.List.of(directShare))
+                .sharingMember(transferredShare)
+                .amount(600000L)
+                .status(PaymentRequestStatus.WAITING_APPROVE)
+                .build();
+
+        when(paymentRequestRepository.findById(reqId)).thenReturn(Optional.of(request));
+        when(paymentRequestRepository.save(any(PaymentRequest.class))).thenAnswer(i -> i.getArgument(0));
+        when(sharingMemberRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        PaymentRequestResponse response = paymentRequestService.approvePayment(reqId, creditorUserDetails);
+
+        assertEquals(PaymentRequestStatus.COMPLETED, response.getStatus());
+        assertTrue(transferredShare.getIsPaid());
+        assertTrue(directShare.getIsPaid());
+        verify(sharingMemberRepository, times(2)).save(any(TransactionSharingMember.class));
+    }
 }

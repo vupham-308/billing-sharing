@@ -12,6 +12,12 @@ import java.util.UUID;
 @Repository
 public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, UUID> {
 
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT pr FROM PaymentRequest pr LEFT JOIN pr.sharingMembers sm " +
+            "LEFT JOIN pr.transaction tx LEFT JOIN pr.sharingMember primaryShare " +
+            "WHERE tx.id = :transactionId OR primaryShare.transaction.id = :transactionId " +
+            "OR sm.transaction.id = :transactionId")
+    List<PaymentRequest> findLinkedToTransaction(@org.springframework.data.repository.query.Param("transactionId") UUID transactionId);
+
     List<PaymentRequest> findByDebtorIdOrderByCreatedAtDesc(UUID debtorId);
 
     List<PaymentRequest> findByCreditorIdOrderByCreatedAtDesc(UUID creditorId);

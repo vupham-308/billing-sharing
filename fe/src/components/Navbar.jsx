@@ -107,6 +107,10 @@ export default function Navbar({ onOpenCreateTransaction, onOpenCreateGroup, onO
                     {/* Admin Navigation Button */}
                     {isAdmin && (
                       <div className="p-1 border-b border-slate-100">
+                        <Link to="/billing-sharing/admin/transactions" className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 rounded-lg">
+                          <Receipt className="w-4 h-4" />
+                          <span>Hóa đơn toàn hệ thống</span>
+                        </Link>
                         {isOnAdminPage ? (
                           <Link
                             to="/billing-sharing"

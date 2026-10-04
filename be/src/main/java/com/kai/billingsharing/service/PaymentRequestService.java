@@ -19,8 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -223,18 +226,28 @@ public class PaymentRequestService {
         request.setCompletedAt(now);
         PaymentRequest saved = paymentRequestRepository.save(request);
 
-        // Đánh dấu TransactionSharingMember là đã thanh toán
-        if (request.getSharingMembers() != null && !request.getSharingMembers().isEmpty()) {
+        // Đánh dấu tất cả TransactionSharingMember liên quan là đã thanh toán.
+        // Một request cấn trừ có thể lưu share trong cả collection (join table)
+        // và sharingMember (share chính). Không dùng else-if ở đây: collection
+        // có thể tồn tại nhưng thiếu share chính do dữ liệu cũ hoặc join table
+        // được tải không đầy đủ.
+        List<TransactionSharingMember> paymentShares = new ArrayList<>();
+        Set<UUID> paymentShareIds = new HashSet<>();
+        if (request.getSharingMembers() != null) {
             for (TransactionSharingMember sm : request.getSharingMembers()) {
-                sm.setIsPaid(true);
-                sm.setPaidAt(now);
-                sharingMemberRepository.save(sm);
+                if (sm != null && (sm.getId() == null || paymentShareIds.add(sm.getId()))) {
+                    paymentShares.add(sm);
+                }
             }
-        } else if (request.getSharingMember() != null) {
-            TransactionSharingMember sharingMember = request.getSharingMember();
-            sharingMember.setIsPaid(true);
-            sharingMember.setPaidAt(now);
-            sharingMemberRepository.save(sharingMember);
+        }
+        TransactionSharingMember primaryShare = request.getSharingMember();
+        if (primaryShare != null && (primaryShare.getId() == null || paymentShareIds.add(primaryShare.getId()))) {
+            paymentShares.add(primaryShare);
+        }
+        for (TransactionSharingMember sm : paymentShares) {
+            sm.setIsPaid(true);
+            sm.setPaidAt(now);
+            sharingMemberRepository.save(sm);
         }
 
         // Cập nhật lại số dư công nợ của User và GroupMember

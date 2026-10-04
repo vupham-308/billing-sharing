@@ -122,6 +122,10 @@ export default function AdminOutbox() {
       <Navbar />
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Top Header */}
+        <nav aria-label="Quản trị" className="flex gap-3 text-sm font-semibold">
+          <span className="text-purple-700">Email Outbox</span>
+          <Link to="/billing-sharing/admin/transactions" className="text-slate-600 hover:text-purple-700">Hóa đơn toàn hệ thống</Link>
+        </nav>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">

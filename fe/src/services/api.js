@@ -118,6 +118,13 @@ export const adminOutboxApi = {
   cancelOutbox: (id) => api.post(`/admin/outbox/${id}/cancel`).then((res) => res.data),
 };
 
+export const adminTransactionApi = {
+  list: (params) => api.get("/admin/transactions", { params }).then((res) => res.data),
+  groups: () => api.get("/admin/transactions/groups").then((res) => res.data),
+  update: (id, data) => api.put(`/admin/transactions/${id}`, data).then((res) => res.data),
+  delete: (id, adjustBalances) => api.delete(`/admin/transactions/${id}`, { params: { adjustBalances } }).then((res) => res.data),
+};
+
 export const paymentInfoApi = {
   getMyInfo: () => read("/payment-info/me"),
   saveMyInfo: (data) => api.put("/payment-info/me", data).then((res) => res.data),

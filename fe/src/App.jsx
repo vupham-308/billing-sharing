@@ -8,6 +8,7 @@ import OAuthCallback from "./pages/OAuthCallback";
 import PaymentRequestDetail from "./pages/PaymentRequestDetail";
 import GroupStatementDetail from "./pages/GroupStatementDetail";
 import AdminOutbox from "./pages/AdminOutbox";
+import AdminTransactions from "./pages/AdminTransactions";
 import SepayGuide from "./pages/SepayGuide";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -66,6 +67,8 @@ export default function App() {
           />
 
           {/* Trang quản trị Email Outbox (yêu cầu quyền ADMIN) */}
+          <Route path="/admin/transactions" element={<ProtectedRoute requireAdmin={true}><AdminTransactions /></ProtectedRoute>} />
+          <Route path="/billing-sharing/admin/transactions" element={<ProtectedRoute requireAdmin={true}><AdminTransactions /></ProtectedRoute>} />
           <Route
             path="/admin/outbox"
             element={
