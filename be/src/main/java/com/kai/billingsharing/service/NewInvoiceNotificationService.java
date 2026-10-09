@@ -24,7 +24,8 @@ public class NewInvoiceNotificationService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    @Scheduled(cron = "0 0 8 * * ?", zone = "Asia/Ho_Chi_Minh")
+    // Tạm thời disable schedule thông báo bill hàng ngày theo yêu cầu
+    // @Scheduled(cron = "0 0 8 * * ?", zone = "Asia/Ho_Chi_Minh")
     public void sendYesterdayInvoices() {
         LocalDate yesterday = LocalDate.now(businessClock).minusDays(1);
         log.info("Bắt đầu tiến trình 08:00 sáng tổng hợp hóa đơn mới ngày hôm qua: {}", yesterday);
