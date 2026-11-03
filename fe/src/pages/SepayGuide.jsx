@@ -41,7 +41,7 @@ export default function SepayGuide() {
   }, []);
 
   const webhookUrl = "https://api.kaidz.xyz/api/v1/webhooks/sepay";
-  const prefix = "SHARE";
+  const prefix = "SEVQR";
 
   const handleCopy = (text, type) => {
     if (!text) return;
@@ -113,7 +113,7 @@ export default function SepayGuide() {
     },
     {
       step: 4,
-      title: "Cấu hình nhận diện mã thanh toán SHARE",
+      title: "Cấu hình nhận diện mã thanh toán SEVQR",
       tag: "Cấu hình chung",
       description: (
         <div className="space-y-2">
@@ -128,7 +128,7 @@ export default function SepayGuide() {
               Cấu hình mẫu mã thanh toán:
               <ul className="list-disc list-inside pl-4 mt-1 space-y-0.5 text-indigo-900 font-medium">
                 <li>
-                  Tiền tố: <code className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded text-indigo-700 font-bold">SHARE</code>
+                  Tiền tố: <code className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded text-indigo-700 font-bold">SEVQR</code>
                 </li>
                 <li>
                   Hậu tố: Từ <code className="px-1 py-0.5 bg-slate-100 rounded">5</code> ký tự Đến <code className="px-1 py-0.5 bg-slate-100 rounded">5</code> ký tự Là <code className="px-1 py-0.5 bg-slate-100 rounded">Số nguyên</code>
@@ -136,7 +136,7 @@ export default function SepayGuide() {
               </ul>
             </li>
             <li>
-              Ví dụ mã hợp lệ SePay nhận diện: <span className="font-mono font-semibold text-emerald-600">SHARE11111</span>.
+              Ví dụ mã hợp lệ SePay nhận diện: <span className="font-mono font-semibold text-emerald-600">SEVQR11111</span>.
             </li>
             <li>Bấm nút <strong>Lưu lại</strong>.</li>
           </ul>
@@ -144,7 +144,7 @@ export default function SepayGuide() {
       ),
       image: {
         src: "/images/sepay/step3_pattern_config.png",
-        caption: "Ảnh 3: Cài đặt tiền tố SHARE và hậu tố 5 số nguyên",
+        caption: "Ảnh 3: Cài đặt tiền tố SEVQR và hậu tố 5 số nguyên",
       },
     },
     {
@@ -222,20 +222,20 @@ export default function SepayGuide() {
               Bật toggle: <strong>Chỉ gửi khi có mã thanh toán</strong>.
             </li>
             <li>
-              Lọc theo mã thanh toán: Nhập hoặc chọn mã <code className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded">SHARE</code>.
+              Lọc theo mã thanh toán: Nhập hoặc chọn mã <code className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded">SEVQR</code>.
             </li>
           </ul>
           <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-lg text-xs text-amber-900 mt-2 flex items-start gap-2">
             <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Lưu ý quan trọng:</strong> Cấu hình lọc theo mã <code>SHARE</code> giúp SePay chỉ gửi webhook đối với các khoản thanh toán chia tiền trong nhóm, hoàn toàn bỏ qua các giao dịch chi tiêu cá nhân khác của bạn!
+              <strong>Lưu ý quan trọng:</strong> Cấu hình lọc theo mã <code>SEVQR</code> giúp SePay chỉ gửi webhook đối với các khoản thanh toán chia tiền trong nhóm, hoàn toàn bỏ qua các giao dịch chi tiêu cá nhân khác của bạn!
             </span>
           </div>
         </div>
       ),
       image: {
         src: "/images/sepay/step6_webhook_account_filter.png",
-        caption: "Ảnh 6: Chọn STK, bật Chỉ gửi khi có mã thanh toán và lọc mã SHARE",
+        caption: "Ảnh 6: Chọn STK, bật Chỉ gửi khi có mã thanh toán và lọc mã SEVQR",
       },
     },
     {
@@ -326,7 +326,7 @@ export default function SepayGuide() {
               <p className="font-semibold mb-0.5">Tuyệt vời! Hệ thống đã sẵn sàng 100%:</p>
               <p className="text-emerald-800">
                 Thẻ tài khoản của bạn sẽ hiển thị huy hiệu <span className="inline-block px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold border border-emerald-300 text-[11px]">🟢 SePay Webhook Auto</span>.
-                Bất cứ khi nào bạn bè quét VietQR chuyển tiền (ví dụ nội dung: <code className="font-mono bg-emerald-100/80 px-1 rounded font-bold">SHARE48291 [TÊN BẠN] chuyen tien</code>), hệ thống sẽ tự động gạch nợ và gửi email xác nhận thành công ngay lập tức!
+                Bất cứ khi nào bạn bè quét VietQR chuyển tiền (ví dụ nội dung: <code className="font-mono bg-emerald-100/80 px-1 rounded font-bold">SEVQR48291 [TÊN BẠN] chuyen tien</code>), hệ thống sẽ tự động gạch nợ và gửi email xác nhận thành công ngay lập tức!
               </p>
             </div>
           </div>
@@ -406,7 +406,7 @@ export default function SepayGuide() {
               Kết nối SePay Webhook từng bước có hình ảnh
             </h2>
             <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed mb-4">
-              SePay lắng nghe thông báo biến động số dư từ tài khoản ngân hàng của bạn và kích hoạt Webhook về hệ thống. Khi người nợ quét mã VietQR chuyển tiền có mã định danh <strong className="text-amber-300">SHARExxxxx</strong>, hệ thống tự động hoàn tất khoản nợ và gửi email tức thời.
+              SePay lắng nghe thông báo biến động số dư từ tài khoản ngân hàng của bạn và kích hoạt Webhook về hệ thống. Khi người nợ quét mã VietQR chuyển tiền có mã định danh <strong className="text-amber-300">SEVQRxxxxx</strong>, hệ thống tự động hoàn tất khoản nợ và gửi email tức thời.
             </p>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-indigo-200">
               <span className="flex items-center gap-1">
@@ -415,7 +415,7 @@ export default function SepayGuide() {
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Lọc mã SHARE riêng tư
+                Lọc mã SEVQR riêng tư
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -506,7 +506,7 @@ export default function SepayGuide() {
                   <span>Tiền tố nhận diện</span>
                 </span>
                 <p className="text-[11px] text-slate-500 mb-2">
-                  Tiền tố SHARE &amp; Hậu tố 5 số
+                  Tiền tố SEVQR &amp; Hậu tố 5 số
                 </p>
               </div>
               <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
@@ -516,7 +516,7 @@ export default function SepayGuide() {
                 <button
                   onClick={() => handleCopy(prefix, "prefix")}
                   className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 transition-colors"
-                  title="Sao chép tiền tố SHARE"
+                  title="Sao chép tiền tố SEVQR"
                 >
                   {copiedPrefix ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>

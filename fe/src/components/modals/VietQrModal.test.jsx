@@ -16,7 +16,7 @@ const paymentQr = {
   accountNumber: "123456",
   accountHolderName: "NGUYEN VAN A",
   amount: 100000,
-  description: "SHARE12345 NGUYEN VAN A chuyen tien",
+  description: "SEVQR12345 NGUYEN VAN A chuyen tien",
   transactionTitle: "Tien an trua",
   groupName: "Nhom A",
   creditorName: "NGUYEN VAN A",

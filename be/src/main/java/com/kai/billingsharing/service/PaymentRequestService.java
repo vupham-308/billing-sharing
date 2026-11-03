@@ -458,31 +458,31 @@ public class PaymentRequestService {
                 return candidate;
             }
         }
-        return "SHARE" + (System.currentTimeMillis() % 90000 + 10000);
+        return "SEVQR" + (System.currentTimeMillis() % 90000 + 10000);
     }
 
-    private static final Pattern SHARE_REGEX = Pattern.compile("(?:B)?SHARE\\d{5}", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PAYMENT_CODE_REGEX = Pattern.compile("(?:B)?((?:SEVQR|SHARE)\\d{5})", Pattern.CASE_INSENSITIVE);
 
     public String extractIdentify(SepayWebhookPayload payload) {
         if (payload == null) {
             return null;
         }
         if (payload.getCode() != null) {
-            Matcher m = SHARE_REGEX.matcher(payload.getCode());
+            Matcher m = PAYMENT_CODE_REGEX.matcher(payload.getCode());
             if (m.find()) {
-                return m.group().toUpperCase();
+                return (m.group(1) != null ? m.group(1) : m.group()).toUpperCase();
             }
         }
         if (payload.getContent() != null) {
-            Matcher m = SHARE_REGEX.matcher(payload.getContent());
+            Matcher m = PAYMENT_CODE_REGEX.matcher(payload.getContent());
             if (m.find()) {
-                return m.group().toUpperCase();
+                return (m.group(1) != null ? m.group(1) : m.group()).toUpperCase();
             }
         }
         if (payload.getDescription() != null) {
-            Matcher m = SHARE_REGEX.matcher(payload.getDescription());
+            Matcher m = PAYMENT_CODE_REGEX.matcher(payload.getDescription());
             if (m.find()) {
-                return m.group().toUpperCase();
+                return (m.group(1) != null ? m.group(1) : m.group()).toUpperCase();
             }
         }
         return null;
@@ -518,11 +518,13 @@ public class PaymentRequestService {
 
         String identify = extractIdentify(payload);
         if (identify == null) {
-            log.warn("Không tìm thấy mã identify SHARE trong payload SePay: code={}, content={}", payload.getCode(), payload.getContent());
-            return Map.of("success", false, "message", "Không tìm thấy mã định danh SHARE trong nội dung giao dịch");
+            log.warn("Không tìm thấy mã identify trong payload SePay: code={}, content={}", payload.getCode(), payload.getContent());
+            return Map.of("success", false, "message", "Không tìm thấy mã định danh trong nội dung giao dịch");
         }
 
-        PaymentRequest request = paymentRequestRepository.findByIdentify(identify).orElse(null);
+        PaymentRequest request = paymentRequestRepository.findByIdentify(identify)
+                .or(() -> paymentRequestRepository.findByIdentify("B" + identify))
+                .orElse(null);
         if (request == null) {
             log.warn("Không tìm thấy PaymentRequest tương ứng với identify={}", identify);
             return Map.of("success", false, "message", "Không tìm thấy yêu cầu thanh toán với mã: " + identify);

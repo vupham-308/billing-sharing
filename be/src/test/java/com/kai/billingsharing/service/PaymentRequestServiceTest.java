@@ -195,8 +195,8 @@ class PaymentRequestServiceTest {
         String debtorName = paymentRequestService.resolveDebtorName(debtor);
         assertEquals("VU PHAM", debtorName);
 
-        String note = com.kai.billingsharing.util.PaymentDescriptionUtil.buildTransferDescriptionWithIdentify("SHARE48291", debtorName);
-        assertEquals("SHARE48291 VU PHAM chuyen tien", note);
+        String note = com.kai.billingsharing.util.PaymentDescriptionUtil.buildTransferDescriptionWithIdentify("SEVQR48291", debtorName);
+        assertEquals("SEVQR48291 VU PHAM chuyen tien", note);
     }
 
     @Test
@@ -293,5 +293,37 @@ class PaymentRequestServiceTest {
         assertTrue(transferredShare.getIsPaid());
         assertTrue(directShare.getIsPaid());
         verify(sharingMemberRepository, times(2)).save(any(TransactionSharingMember.class));
+    }
+
+    @Test
+    void testBuildIdentify_GeneratesSevqrPrefix() {
+        String identify = com.kai.billingsharing.util.PaymentDescriptionUtil.buildIdentify();
+        assertTrue(identify.matches("^SEVQR\\d{5}$"), "Identify must match SEVQR + 5 digits: " + identify);
+    }
+
+    @Test
+    void testGenerateUniqueIdentify_GeneratesSevqrPrefix() {
+        when(paymentRequestRepository.existsByIdentify(anyString())).thenReturn(false);
+        String identify = paymentRequestService.generateUniqueIdentify();
+        assertTrue(identify.startsWith("SEVQR"));
+        assertEquals(10, identify.length());
+    }
+
+    @Test
+    void testExtractIdentify_SupportsBothSevqrAndShare() {
+        com.kai.billingsharing.dto.webhook.SepayWebhookPayload payload1 = com.kai.billingsharing.dto.webhook.SepayWebhookPayload.builder()
+                .code("SEVQR12345")
+                .build();
+        assertEquals("SEVQR12345", paymentRequestService.extractIdentify(payload1));
+
+        com.kai.billingsharing.dto.webhook.SepayWebhookPayload payload2 = com.kai.billingsharing.dto.webhook.SepayWebhookPayload.builder()
+                .content("BSEVQR54321 NGUYEN VAN A chuyen khoan")
+                .build();
+        assertEquals("SEVQR54321", paymentRequestService.extractIdentify(payload2));
+
+        com.kai.billingsharing.dto.webhook.SepayWebhookPayload payload3 = com.kai.billingsharing.dto.webhook.SepayWebhookPayload.builder()
+                .description("Noi dung SHARE99999 thanh toan")
+                .build();
+        assertEquals("SHARE99999", paymentRequestService.extractIdentify(payload3));
     }
 }
