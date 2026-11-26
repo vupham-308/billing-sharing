@@ -194,3 +194,46 @@ test("reopening or closing modal resets form fields so subsequent transactions s
   expect(newTitleInput.value).toBe("");
   expect(newTotalInput.value).toBe("");
 });
+
+test("total amount trims spaces, previews multi-operator math expressions, and commits on blur or Enter", async () => {
+  const submit = vi.fn().mockResolvedValue(undefined);
+  render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={submit} />);
+  await screen.findByText("vu");
+
+  const totalInput = screen.getByLabelText("Tổng số tiền");
+  fireEvent.focus(totalInput);
+  fireEvent.change(totalInput, { target: { value: " 22000 + 2000 " } });
+  expect(totalInput.value).toBe("22000+2000");
+  expect(screen.getByTestId("amount-expression-preview").textContent).toBe("=24.000");
+  expect(screen.getByLabelText("Số tiền của Payer").value).toBe("12.000");
+  expect(screen.getByLabelText("Số tiền của vu").value).toBe("12.000");
+
+  // Tab / blur commits the calculated result
+  fireEvent.blur(totalInput);
+  expect(totalInput.value).toBe("24.000");
+  expect(screen.queryByTestId("amount-expression-preview")).toBeNull();
+
+  // Multi-operator expression commits on Enter without submitting the form
+  fireEvent.focus(totalInput);
+  fireEvent.change(totalInput, { target: { value: "22000+2000-20000" } });
+  expect(screen.getByTestId("amount-expression-preview").textContent).toBe("=4.000");
+  fireEvent.keyDown(totalInput, { key: "Enter" });
+  expect(submit).not.toHaveBeenCalled();
+  expect(totalInput.value).toBe("4.000");
+  expect(screen.getByLabelText("Số tiền của Payer").value).toBe("2.000");
+  expect(screen.getByLabelText("Số tiền của vu").value).toBe("2.000");
+});
+
+test("total amount preserves incomplete expression and shows error on blur", async () => {
+  render(<CreateTransactionModal isOpen groups={groups} currentUserId="payer" onClose={() => {}} onSubmit={vi.fn()} />);
+  await screen.findByText("vu");
+
+  const totalInput = screen.getByLabelText("Tổng số tiền");
+  fireEvent.focus(totalInput);
+  fireEvent.change(totalInput, { target: { value: "22000+" } });
+  expect(screen.queryByTestId("amount-expression-preview")).toBeNull();
+
+  fireEvent.blur(totalInput);
+  expect(totalInput.value).toBe("22000+");
+  expect(screen.getByText("Biểu thức số tiền không hợp lệ")).toBeTruthy();
+});

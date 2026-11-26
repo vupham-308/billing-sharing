@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { X, Receipt, Check, AlertCircle } from "lucide-react";
 import { formatVND, formatNumber } from "../../utils/formatters";
 import { splitAmount } from "../../utils/splitAmount";
+import { sanitizeAmountInput, evaluateAmountExpression } from "../../utils/amountExpression";
 import { groupApi } from "../../services/api";
 
 export default function CreateTransactionModal({
@@ -106,12 +107,9 @@ export default function CreateTransactionModal({
   }, [isOpen, groupId, groups]);
 
   const handleAmountChange = (e) => {
-    let rawVal = e.target.value.replace(/\D/g, "");
-    if (rawVal.length > 1 && rawVal.startsWith("0")) {
-      rawVal = rawVal.replace(/^0+/, "") || "0";
-    }
+    const rawVal = sanitizeAmountInput(e.target.value);
 
-    if (rawVal && !Number.isSafeInteger(Number(rawVal))) {
+    if (rawVal && !/[+\-*/()]/.test(rawVal) && !Number.isSafeInteger(Number(rawVal))) {
       setError("Số tiền quá lớn để chia chính xác.");
       return;
     }
@@ -149,7 +147,17 @@ export default function CreateTransactionModal({
   };
 
   // Calculations
-  const numericTotal = parseInt(totalAmount, 10) || 0;
+  const amountEval = evaluateAmountExpression(totalAmount);
+  const numericTotal = amountEval.valid && amountEval.value > 0 ? amountEval.value : 0;
+  const showExpressionPreview = amountEval.hasOperator && amountEval.valid;
+  const displayedAmountValue = isAmountFocused
+    ? totalAmount
+    : totalAmount === ""
+    ? ""
+    : amountEval.valid && !amountEval.hasOperator
+    ? formatNumber(totalAmount)
+    : totalAmount;
+
   const equalShares = splitAmount(numericTotal, selectedMemberIds, currentUserId);
   const baseShares = customShares || equalShares;
   const currentShares = shareDraft
@@ -161,6 +169,29 @@ export default function CreateTransactionModal({
   const diff = customSum - numericTotal;
   const isCustomBalanced = numericTotal > 0 && diff === 0;
   const hasInvalidShare = selectedMemberIds.some((id) => (displayedShares[id] || 0) < 1);
+
+  const commitAmountExpression = () => {
+    if (!totalAmount) return true;
+    if (!amountEval.hasOperator) {
+      if (!amountEval.valid && amountEval.error) {
+        setError(amountEval.error);
+        return false;
+      }
+      return true;
+    }
+    if (!amountEval.valid) {
+      setError(amountEval.error || "Biểu thức số tiền không hợp lệ");
+      return false;
+    }
+    if (amountEval.value <= 0) {
+      setTotalAmount("0");
+      setError("Vui lòng nhập tổng số tiền hợp lệ (> 0)");
+      return false;
+    }
+    setTotalAmount(String(amountEval.value));
+    setError("");
+    return true;
+  };
 
   const commitShareDraft = (memberId = shareDraft?.memberId) => {
     if (!shareDraft || (memberId && shareDraft.memberId !== memberId)) {
@@ -183,6 +214,9 @@ export default function CreateTransactionModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!commitAmountExpression()) {
+      return;
+    }
     const committedShares = commitShareDraft();
 
     if (!groupId) {
@@ -300,39 +334,48 @@ export default function CreateTransactionModal({
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                   Tổng số tiền (VNĐ)
                 </label>
-                {numericTotal > 0 && isAmountFocused && (
-                  <span className="text-xs font-bold text-indigo-600">
+                {numericTotal > 0 && isAmountFocused && !amountEval.hasOperator && (
+                  <span className="text-xs font-medium text-slate-400">
                     = {formatVND(numericTotal)}
                   </span>
                 )}
               </div>
-              <input
-                ref={amountInputRef}
-                type="text"
-                placeholder="0"
-                aria-label="Tổng số tiền"
-                inputMode="numeric"
-                value={
-                  isAmountFocused
-                    ? totalAmount
-                    : totalAmount === ""
-                    ? ""
-                    : formatNumber(totalAmount)
-                }
-                onFocus={(e) => {
-                  setIsAmountFocused(true);
-                  e.target.select();
-                }}
-                onBlur={() => setIsAmountFocused(false)}
-                onChange={handleAmountChange}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    e.target.blur();
-                  }
-                }}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
+              <div className="flex items-center w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
+                <input
+                  ref={amountInputRef}
+                  type="text"
+                  placeholder="0"
+                  aria-label="Tổng số tiền"
+                  inputMode="text"
+                  value={displayedAmountValue}
+                  onFocus={(e) => {
+                    setIsAmountFocused(true);
+                    e.target.select();
+                  }}
+                  onBlur={() => {
+                    setIsAmountFocused(false);
+                    commitAmountExpression();
+                  }}
+                  onChange={handleAmountChange}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitAmountExpression();
+                      setIsAmountFocused(false);
+                      e.target.blur();
+                    }
+                  }}
+                  className="flex-1 min-w-0 bg-transparent text-sm font-bold text-slate-900 focus:outline-none"
+                />
+                {showExpressionPreview && (
+                  <span
+                    data-testid="amount-expression-preview"
+                    className="ml-2 shrink-0 text-xs font-medium text-slate-400 select-none"
+                  >
+                    ={formatNumber(amountEval.value)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
