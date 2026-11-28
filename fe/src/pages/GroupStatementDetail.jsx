@@ -631,9 +631,9 @@ export default function GroupStatementDetail() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="max-h-[58dvh] md:max-h-[540px] overflow-y-auto overflow-x-auto">
                 <table className="w-full block md:table text-left text-xs">
-                  <thead className="hidden md:table-header-group bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                  <thead className="hidden md:table-header-group md:sticky md:top-0 md:z-10 bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3">Khoản chi tiêu</th>
                       <th className="px-4 py-3">Tổng tiền</th>
@@ -797,9 +797,9 @@ export default function GroupStatementDetail() {
                 <span className="text-xs text-slate-500 shrink-0">{snapshotItems.length} khoản nợ</span>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="max-h-[58dvh] md:max-h-[540px] overflow-y-auto overflow-x-auto">
                 <table className="w-full block md:table text-left text-xs">
-                  <thead className="hidden md:table-header-group bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                  <thead className="hidden md:table-header-group md:sticky md:top-0 md:z-10 bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3">Khoản nợ</th>
                       <th className="px-4 py-3">Người nợ</th>
