@@ -642,7 +642,7 @@ export default function GroupStatementDetail() {
                       <th className="px-4 py-3">Thành viên cùng chia</th>
                     </tr>
                   </thead>
-                  <tbody className="block md:table-row-group divide-y divide-slate-100">
+                  <tbody className="block md:table-row-group divide-y-4 divide-slate-100 md:divide-y md:divide-slate-100">
                     {transactions.length === 0 ? (
                       <tr className="block md:table-row">
                         <td colSpan={5} className="block md:table-cell px-4 py-8 text-center text-slate-400">
@@ -655,7 +655,7 @@ export default function GroupStatementDetail() {
                         return (
                           <tr key={tx.id} className="block md:table-row p-4 md:p-0 space-y-2 md:space-y-0 hover:bg-slate-50/70 transition-colors">
                             {/* Khoản chi tiêu */}
-                            <td className="block md:table-cell md:px-4 md:py-3">
+                            <td className="block md:table-cell pb-2 border-b border-slate-100 md:border-b-0 md:px-4 md:py-3">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-bold text-slate-900">{tx.title}</p>
                                 {(tx.isAdjustment || tx.title?.includes("[Cấn trừ sao kê]")) && (
@@ -693,10 +693,10 @@ export default function GroupStatementDetail() {
                             </td>
 
                             {/* Bạn cần trả bao nhiêu từ đó */}
-                            <td data-label="Bạn cần trả" className="flex md:table-cell items-start justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
+                            <td data-label="Bạn cần trả" className="flex md:table-cell items-start justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">
                               {hasUserShare ? (
-                                <div>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="text-right md:text-left">
+                                  <div className="flex items-center justify-end md:justify-start gap-1.5 flex-wrap">
                                     <span className="font-bold text-rose-600 text-sm">
                                       {formatVND(tx.currentUserShare)}
                                     </span>
@@ -716,21 +716,21 @@ export default function GroupStatementDetail() {
                                     })()}
                                   </div>
                                   {tx.isUserPayer && (
-                                    <span className="block text-[10px] text-slate-500">
+                                    <span className="block text-[10px] text-slate-500 mt-0.5">
                                       (Bạn đã ứng cả hóa đơn)
                                     </span>
                                   )}
                                 </div>
                               ) : tx.isUserPayer ? (
-                                <div>
-                                  <div className="flex items-center gap-1.5">
+                                <div className="text-right md:text-left">
+                                  <div className="flex items-center justify-end md:justify-start gap-1.5">
                                     <span className="font-semibold text-emerald-600">0 ₫</span>
                                     <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
                                       <Check className="w-2.5 h-2.5 text-emerald-600" />
                                       Đã thanh toán
                                     </span>
                                   </div>
-                                  <span className="block text-[10px] text-slate-500">
+                                  <span className="block text-[10px] text-slate-500 mt-0.5">
                                     (Bạn đã ứng cả hóa đơn)
                                   </span>
                                 </div>
@@ -740,7 +740,7 @@ export default function GroupStatementDetail() {
                             </td>
 
                             {/* Thành viên cùng chia */}
-                            <td className="px-4 py-3 max-w-[280px]">
+                            <td className="block md:table-cell pt-2 border-t border-slate-100 md:border-t-0 md:px-4 md:py-3 md:max-w-[280px] before:content-['Chia_cho:'] before:block before:text-[11px] before:font-semibold before:text-slate-400 before:mb-1.5 md:before:hidden">
                               <div className="flex flex-wrap gap-1">
                                 {(tx.shares || []).map((s, idx) => (
                                   <span
@@ -767,15 +767,15 @@ export default function GroupStatementDetail() {
                     )}
                   </tbody>
                   {transactions.length > 0 && (
-                    <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200 text-slate-800 text-xs">
-                      <tr>
-                        <td className="px-4 py-3">Tổng cộng ({transactions.length} hóa đơn bạn tham gia)</td>
-                        <td className="px-4 py-3 text-slate-900 font-extrabold">{formatVND(totalPeriodExpense)}</td>
-                        <td className="px-4 py-3">—</td>
-                        <td className="px-4 py-3 text-rose-600 font-extrabold">
+                    <tfoot className="block md:table-footer-group bg-slate-50/80 font-bold border-t border-slate-200 text-slate-800 text-xs">
+                      <tr className="block md:table-row p-4 md:p-0 space-y-1.5 md:space-y-0">
+                        <td className="block md:table-cell md:px-4 md:py-3">Tổng cộng ({transactions.length} hóa đơn bạn tham gia)</td>
+                        <td data-label="Tổng tiền" className="flex md:table-cell items-center justify-between md:px-4 md:py-3 text-slate-900 font-extrabold before:content-[attr(data-label)] before:font-semibold before:text-slate-500 md:before:hidden">{formatVND(totalPeriodExpense)}</td>
+                        <td className="hidden md:table-cell px-4 py-3">—</td>
+                        <td data-label="Tổng phần bạn" className="flex md:table-cell items-center justify-between md:px-4 md:py-3 text-rose-600 font-extrabold before:content-[attr(data-label)] before:font-semibold before:text-slate-500 md:before:hidden">
                           {formatVND(userTotalShare)}
                         </td>
-                        <td className="px-4 py-3 text-slate-500 font-normal">
+                        <td className="block md:table-cell md:px-4 md:py-3 text-slate-500 font-normal">
                           {userTotalPaid > 0 && `(Bạn đã ứng trả cho nhóm: ${formatVND(userTotalPaid)})`}
                         </td>
                       </tr>
@@ -809,7 +809,7 @@ export default function GroupStatementDetail() {
                       <th className="px-4 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="block md:table-row-group divide-y divide-slate-100">
+                  <tbody className="block md:table-row-group divide-y-4 divide-slate-100 md:divide-y md:divide-slate-100">
                     {snapshotItems.length === 0 ? (
                       <tr className="block md:table-row">
                         <td colSpan={6} className="block md:table-cell px-4 py-8 text-center text-slate-400">
@@ -873,30 +873,34 @@ export default function GroupStatementDetail() {
                             <td data-label="Số tiền" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 font-bold text-red-600 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {formatVND(item.amount)}
                             </td>
-                            <td className="block md:table-cell md:px-4 md:py-3 md:max-w-[280px]">
+                            <td className="block md:table-cell md:px-4 md:py-3 md:max-w-[280px] bg-slate-50/80 md:bg-transparent p-2.5 rounded-xl md:rounded-none border border-slate-200/70 md:border-0">
                               {item.accountNumber ? (
                                 <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-slate-800 font-semibold">{item.accountNumber}</span>
-                                    <span className="text-[11px] text-slate-500">({item.bankCode})</span>
+                                  <div className="flex items-center justify-between md:justify-start gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="font-mono text-slate-800 font-semibold">{item.accountNumber}</span>
+                                      <span className="text-[11px] text-slate-500">({item.bankCode})</span>
+                                    </div>
                                     <button
                                       onClick={() => handleCopy(item.accountNumber, `acc-${idx}`)}
-                                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                                      className="text-slate-500 hover:text-slate-700 p-1 rounded cursor-pointer shrink-0"
                                       title="Sao chép STK"
                                     >
-                                      {copiedField === `acc-${idx}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                      {copiedField === `acc-${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                                     </button>
                                   </div>
                                   <p className="text-[11px] text-slate-500 truncate">{item.accountHolderName}</p>
-                                  <div className="flex items-center gap-1.5 text-[11px] bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-fit">
-                                    <span className="text-slate-500">ND:</span>
-                                    <span className="font-mono font-bold text-slate-700 select-all">{item.description}</span>
+                                  <div className="flex items-center justify-between md:justify-start gap-1.5 text-[11px] bg-white md:bg-slate-50 px-2 py-1 md:py-0.5 rounded border border-slate-200 w-full md:w-fit max-w-full">
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className="text-slate-500 shrink-0">ND:</span>
+                                      <span className="font-mono font-bold text-slate-700 select-all truncate">{item.description}</span>
+                                    </div>
                                     <button
                                       onClick={() => handleCopy(item.description, `desc-${idx}`)}
-                                      className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                                      className="text-slate-500 hover:text-slate-700 p-1 md:p-0.5 rounded cursor-pointer shrink-0"
                                       title="Sao chép nội dung"
                                     >
-                                      {copiedField === `desc-${idx}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                      {copiedField === `desc-${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                                     </button>
                                   </div>
                                 </div>
@@ -904,24 +908,26 @@ export default function GroupStatementDetail() {
                                 <span className="text-amber-600 text-[11px]">Chưa thiết lập STK</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                            <td className="flex md:table-cell justify-end md:px-4 md:py-3 md:text-right pt-2 border-t border-slate-100 md:border-t-0">
+                              <div className="flex items-center justify-end gap-2 md:gap-1.5 w-full md:w-auto">
                                 {item.accountNumber && (
                                   <button
                                     onClick={() => handleOpenQr(item)}
-                                    className="p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 md:p-1.5 bg-indigo-50 md:bg-transparent text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/70 md:hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer text-xs font-semibold"
                                     title="Xem mã VietQR"
                                   >
                                     <QrCode className="w-4 h-4" />
+                                    <span className="md:hidden">Xem VietQR</span>
                                   </button>
                                 )}
                                 {item.requestId && (
                                   <Link
                                     to={`/billing-sharing/payment-requests/${item.requestId}`}
-                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 md:p-1.5 bg-slate-100 md:bg-transparent text-slate-600 md:text-slate-500 hover:text-indigo-600 hover:bg-slate-200/70 md:hover:bg-slate-100 rounded-lg transition-colors text-xs font-semibold"
                                     title="Mở chi tiết yêu cầu"
                                   >
                                     <ExternalLink className="w-4 h-4" />
+                                    <span className="md:hidden">Chi tiết</span>
                                   </Link>
                                 )}
                               </div>
