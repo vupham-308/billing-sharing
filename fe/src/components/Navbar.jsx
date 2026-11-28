@@ -86,7 +86,7 @@ export default function Navbar({ onOpenCreateTransaction, onOpenCreateGroup, onO
 
                 {/* Dropdown Menu */}
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                     {/* User Info Header */}
                     <div className="px-4 py-2.5 border-b border-slate-100">
                       <p className="text-sm font-bold text-slate-900 truncate">{displayName || "Người dùng"}</p>

@@ -104,33 +104,35 @@ export default function AdminTransactions() {
         {loading ? <p role="status">Đang tải hóa đơn...</p> : !error && <>
           <p className="text-sm text-slate-600">{data.totalElements} hóa đơn · Trạng thái “Đã trả hết” chỉ khi mọi phần chia đã trả. Bao gồm giao dịch điều chỉnh.</p>
           {data.content.length === 0 ? <p className="bg-white p-6 rounded-2xl border border-slate-200">Không có hóa đơn phù hợp.</p> :
-            <div className="overflow-x-auto bg-white border border-slate-200 rounded-2xl">
-              <table className="w-full text-sm text-left"><thead className="bg-slate-100 text-slate-600"><tr>
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              <table className="w-full block md:table text-sm text-left"><thead className="hidden md:table-header-group bg-slate-100 text-slate-600"><tr>
                 {["Hóa đơn", "Nhóm", "Người trả", "Tổng tiền", "Thanh toán", "Phần chia", "Thao tác"].map((h) => <th key={h} className="p-4 whitespace-nowrap">{h}</th>)}
-              </tr></thead><tbody>{data.content.map((tx) => <tr key={tx.id} className="border-t border-slate-100 align-top">
-                <td className="p-4"><p className="font-semibold text-slate-900">{tx.title}</p><p className="text-xs text-slate-500 mt-1">{date(tx.createdAt)}</p>
-                  {tx.isAdjustment && <span className="text-xs text-purple-700">Điều chỉnh · {tx.adjustmentType}</span>}</td>
-                <td className="p-4">{tx.groupName}</td><td className="p-4">{tx.payerName}</td><td className="p-4 whitespace-nowrap font-semibold">{money(tx.totalAmount)}</td>
-                <td className="p-4"><span className={`inline-block rounded-lg px-2 py-1 whitespace-nowrap ${tx.isPaid ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{tx.isPaid ? "Đã trả hết" : "Còn chưa trả"}</span></td>
-                <td className="p-4 min-w-64"><details><summary className="cursor-pointer text-indigo-700">Xem {tx.sharingMembers.length} phần chia</summary>
+              </tr></thead><tbody className="block md:table-row-group divide-y divide-slate-100">{data.content.map((tx) => <tr key={tx.id} className="block md:table-row p-4 md:p-0 space-y-2 md:space-y-0 md:border-t md:border-slate-100 align-top">
+                <td data-label="Hóa đơn" className="flex md:table-cell items-start justify-between gap-2 md:p-4 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden"><div className="text-right md:text-left"><p className="font-semibold text-slate-900 break-words">{tx.title}</p><p className="text-xs text-slate-500 mt-1">{date(tx.createdAt)}</p>
+                  {tx.isAdjustment && <span className="text-xs text-purple-700">Điều chỉnh · {tx.adjustmentType}</span>}</div></td>
+                <td data-label="Nhóm" className="flex md:table-cell items-center justify-between gap-2 md:p-4 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">{tx.groupName}</td>
+                <td data-label="Người trả" className="flex md:table-cell items-center justify-between gap-2 md:p-4 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">{tx.payerName}</td>
+                <td data-label="Tổng tiền" className="flex md:table-cell items-center justify-between gap-2 md:p-4 whitespace-nowrap font-semibold before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">{money(tx.totalAmount)}</td>
+                <td data-label="Thanh toán" className="flex md:table-cell items-center justify-between gap-2 md:p-4 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden"><span className={`inline-block rounded-lg px-2 py-1 whitespace-nowrap ${tx.isPaid ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{tx.isPaid ? "Đã trả hết" : "Còn chưa trả"}</span></td>
+                <td className="block md:table-cell md:p-4 md:min-w-64 pt-1 border-t border-slate-100 md:border-t-0"><details><summary className="cursor-pointer text-indigo-700">Xem {tx.sharingMembers.length} phần chia</summary>
                   <ul className="mt-3 space-y-3">{tx.sharingMembers.map((s) => <li key={s.id}>
                     <p className="font-medium">{s.fullName} · {money(s.shareAmount)}</p>
                     <p className={`text-xs ${s.isPaid ? "text-emerald-700" : "text-amber-700"}`}>{s.isPaid ? "Đã trả" : "Chưa trả"}{s.isPaid && s.paidAt ? ` · ${date(s.paidAt)}` : ""}</p>
                   </li>)}</ul><p className="text-xs text-slate-400 mt-3 break-all">ID: {tx.id}</p>
                 </details></td>
-                <td className="p-4 whitespace-nowrap"><button onClick={() => openEdit(tx)} className="text-indigo-700 font-semibold mr-3">Sửa</button>
+                <td className="flex md:table-cell justify-end md:justify-start gap-3 md:p-4 whitespace-nowrap pt-2 border-t border-slate-100 md:border-t-0"><button onClick={() => openEdit(tx)} className="text-indigo-700 font-semibold mr-3">Sửa</button>
                   <button onClick={() => { setActionError(""); setAdjustBalances(false); setDeleting(tx); }} className="text-rose-700 font-semibold">Xóa</button></td>
               </tr>)}</tbody></table>
             </div>}
-          <div className="flex items-center justify-end gap-3 text-sm">
+          <div className="flex items-center justify-between sm:justify-end gap-3 text-sm">
             <button disabled={page === 0} onClick={() => changePage(page - 1)} className="px-3 py-2 rounded-lg border disabled:opacity-40">Trang trước</button>
             <span>Trang {data.totalPages ? page + 1 : 0} / {data.totalPages}</span>
             <button disabled={page + 1 >= data.totalPages} onClick={() => changePage(page + 1)} className="px-3 py-2 rounded-lg border disabled:opacity-40">Trang sau</button>
           </div>
         </>}
       </main>
-      {(edit || deleting) && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-        <section role="dialog" aria-modal="true" aria-labelledby="edit-title" className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+      {(edit || deleting) && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <section role="dialog" aria-modal="true" aria-labelledby="edit-title" className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6">
           <form onSubmit={mutate} className="space-y-4">
             <h2 id="edit-title" className="text-lg font-bold">{edit ? "Sửa hóa đơn" : "Xóa hóa đơn"}</h2>
             <p className="text-sm text-slate-500">{(edit || deleting).groupName} · Người trả: {(edit || deleting).payerName}</p>

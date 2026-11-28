@@ -238,8 +238,8 @@ export default function AdminOutbox() {
         {/* Table Container */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider font-semibold">
+            <table className="w-full block md:table text-left text-xs">
+              <thead className="hidden md:table-header-group bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="px-4 py-3">Loại / Tiêu đề</th>
                   <th className="px-4 py-3">Người nhận</th>
@@ -249,10 +249,10 @@ export default function AdminOutbox() {
                   <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="block md:table-row-group divide-y divide-slate-100">
                 {outboxes.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <tr className="block md:table-row">
+                    <td colSpan={6} className="block md:table-cell px-4 py-12 text-center text-slate-400">
                       {loading ? "Đang tải dữ liệu..." : "Không có bản ghi email outbox nào phù hợp."}
                     </td>
                   </tr>
@@ -267,8 +267,8 @@ export default function AdminOutbox() {
                     const canCancel = item.status !== "SENT" && item.status !== "CANCELLED";
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-4 py-3 max-w-[240px]">
+                      <tr key={item.id} className="block md:table-row p-4 md:p-0 space-y-2 md:space-y-0 hover:bg-slate-50/70 transition-colors">
+                        <td className="block md:table-cell md:px-4 md:py-3 md:max-w-[240px]">
                           <span className="font-bold text-[11px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 block w-fit mb-1">
                             {item.type}
                           </span>
@@ -279,29 +279,33 @@ export default function AdminOutbox() {
                             {item.businessKey}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-slate-800">{item.recipientName || "—"}</p>
-                          <p className="text-slate-500 font-mono text-[11px]">{item.recipientEmail}</p>
-                          {item.deliveryStatus && (
-                            <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-blue-50 text-blue-700 border border-blue-200">
-                              Brevo: {item.deliveryStatus}
+                        <td data-label="Người nhận" className="flex md:table-cell items-start justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">
+                          <div className="text-right md:text-left min-w-0">
+                            <p className="font-semibold text-slate-800">{item.recipientName || "—"}</p>
+                            <p className="text-slate-500 font-mono text-[11px] break-all">{item.recipientEmail}</p>
+                            {item.deliveryStatus && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-blue-50 text-blue-700 border border-blue-200">
+                                Brevo: {item.deliveryStatus}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td data-label="Trạng thái" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">
+                          <div className="text-right md:text-left">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.bg}`}
+                            >
+                              <StatusIcon className="w-3 h-3" />
+                              <span>{statusInfo.label}</span>
                             </span>
-                          )}
+                            {item.lastError && (
+                              <p className="text-[10px] text-red-600 mt-1 line-clamp-1 max-w-[160px]" title={item.lastError}>
+                                {item.lastError}
+                              </p>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.bg}`}
-                          >
-                            <StatusIcon className="w-3 h-3" />
-                            <span>{statusInfo.label}</span>
-                          </span>
-                          {item.lastError && (
-                            <p className="text-[10px] text-red-600 mt-1 line-clamp-1 max-w-[160px]" title={item.lastError}>
-                              {item.lastError}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Retry" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">
                           <div className="text-slate-700">
                             <span className="font-bold">{item.retryCount}</span>
                             <span className="text-slate-400"> / {item.maxRetries}</span>
@@ -312,7 +316,7 @@ export default function AdminOutbox() {
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-[11px] text-slate-500">
+                        <td data-label="Thời gian" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 text-[11px] text-slate-500 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 before:shrink-0 md:before:hidden">
                           <p title={item.createdAt}>
                             {new Date(item.createdAt).toLocaleDateString("vi-VN")}{" "}
                             {new Date(item.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
@@ -323,7 +327,7 @@ export default function AdminOutbox() {
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="flex md:table-cell justify-end md:px-4 md:py-3 md:text-right pt-2 border-t border-slate-100 md:border-t-0">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setSelectedItem(item)}

@@ -42,8 +42,8 @@ export default function AddGroupMemberModal({ group, onClose, onMembersChanged }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="add-member-title" className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="add-member-title" className="bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6 w-full max-w-md shadow-xl max-h-[90dvh] overflow-y-auto">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 id="add-member-title" className="font-bold text-lg">Thành viên · {group.name}</h2>
           <button type="button" onClick={onClose} disabled={saving} aria-label="Đóng"><X className="w-5 h-5" /></button>

@@ -18,43 +18,43 @@ export default function HeroBalance({
   const isZero = netBalance === 0;
 
   return (
-    <section className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-xs">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+    <section className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-8 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 pb-5 sm:pb-6 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
             <Wallet className="w-4 h-4 text-indigo-500" />
             <span>Tổng quan công nợ</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Xin chào, {user?.name || "Bạn"}
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
             Số liệu công nợ được đồng bộ tự động từ các hóa đơn và nhóm chi tiêu của bạn.
           </p>
         </div>
 
         {/* Quick action buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5">
           <button
             onClick={onOpenCreateTransaction}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-xs transition-all hover:shadow"
+            className="col-span-2 sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-xs transition-all hover:shadow"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm hóa đơn</span>
           </button>
           <button
             onClick={onOpenCreateGroup}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors cursor-pointer"
           >
-            <Users className="w-4 h-4 text-slate-600" />
+            <Users className="w-4 h-4 text-slate-600 shrink-0" />
             <span>Tạo nhóm mới</span>
           </button>
           {groups.length > 0 && (
             <Link
               to={`/billing-sharing/groups/${selectedGroupId || groups[0].id}/statements`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 transition-colors"
             >
-              <FileText className="w-4 h-4 text-indigo-600" />
+              <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>Kỳ sao kê</span>
             </Link>
           )}

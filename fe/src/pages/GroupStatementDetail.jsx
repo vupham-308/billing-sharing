@@ -620,9 +620,9 @@ export default function GroupStatementDetail() {
 
             {/* Khối 2: DANH SÁCH CHI TIẾT TỪNG HÓA ĐƠN TRONG KỲ (Transactions Table) */}
             <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-indigo-600" />
+                  <Receipt className="w-4 h-4 text-indigo-600 shrink-0" />
                   <h3 className="text-sm font-bold text-slate-900">Chi Tiết Từng Hóa Đơn Bạn Tham Gia</h3>
                 </div>
                 <div className="text-xs text-slate-500">
@@ -632,8 +632,8 @@ export default function GroupStatementDetail() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                <table className="w-full block md:table text-left text-xs">
+                  <thead className="hidden md:table-header-group bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3">Khoản chi tiêu</th>
                       <th className="px-4 py-3">Tổng tiền</th>
@@ -642,10 +642,10 @@ export default function GroupStatementDetail() {
                       <th className="px-4 py-3">Thành viên cùng chia</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="block md:table-row-group divide-y divide-slate-100">
                     {transactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      <tr className="block md:table-row">
+                        <td colSpan={5} className="block md:table-cell px-4 py-8 text-center text-slate-400">
                           Không có hóa đơn nào bạn tham gia trong khoảng thời gian của kỳ này.
                         </td>
                       </tr>
@@ -653,9 +653,9 @@ export default function GroupStatementDetail() {
                       transactions.map((tx) => {
                         const hasUserShare = tx.currentUserShare > 0;
                         return (
-                          <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                          <tr key={tx.id} className="block md:table-row p-4 md:p-0 space-y-2 md:space-y-0 hover:bg-slate-50/70 transition-colors">
                             {/* Khoản chi tiêu */}
-                            <td className="px-4 py-3">
+                            <td className="block md:table-cell md:px-4 md:py-3">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-bold text-slate-900">{tx.title}</p>
                                 {(tx.isAdjustment || tx.title?.includes("[Cấn trừ sao kê]")) && (
@@ -676,12 +676,12 @@ export default function GroupStatementDetail() {
                             </td>
 
                             {/* Tổng tiền ("total nhiêu") */}
-                            <td className="px-4 py-3 font-extrabold text-slate-900 text-sm">
+                            <td data-label="Tổng tiền" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 font-extrabold text-slate-900 text-sm before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {formatVND(tx.totalAmount)}
                             </td>
 
                             {/* Người trả tiền ("ai trả") */}
-                            <td className="px-4 py-3">
+                            <td data-label="Người trả" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-semibold text-slate-800">{tx.payerName}</span>
                                 {tx.isUserPayer && (
@@ -693,7 +693,7 @@ export default function GroupStatementDetail() {
                             </td>
 
                             {/* Bạn cần trả bao nhiêu từ đó */}
-                            <td className="px-4 py-3">
+                            <td data-label="Bạn cần trả" className="flex md:table-cell items-start justify-between gap-2 md:px-4 md:py-3 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {hasUserShare ? (
                                 <div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -787,19 +787,19 @@ export default function GroupStatementDetail() {
 
             {/* Khối 3: CHI TIẾT CÔNG NỢ TOÀN BỘ CẢ NHÓM (Snapshot Table) */}
             <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Bảng Tổng Hợp Công Nợ Cả Nhóm Đã Chốt</h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Lưu trữ bất biến tại thời điểm chốt kỳ ({new Date(statementData?.processedAt).toLocaleDateString("vi-VN")})
                   </p>
                 </div>
-                <span className="text-xs text-slate-500">{snapshotItems.length} khoản nợ</span>
+                <span className="text-xs text-slate-500 shrink-0">{snapshotItems.length} khoản nợ</span>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+                <table className="w-full block md:table text-left text-xs">
+                  <thead className="hidden md:table-header-group bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3">Khoản nợ</th>
                       <th className="px-4 py-3">Người nợ</th>
@@ -809,10 +809,10 @@ export default function GroupStatementDetail() {
                       <th className="px-4 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="block md:table-row-group divide-y divide-slate-100">
                     {snapshotItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                      <tr className="block md:table-row">
+                        <td colSpan={6} className="block md:table-cell px-4 py-8 text-center text-slate-400">
                           Không có khoản nợ nào trong kỳ này.
                         </td>
                       </tr>
@@ -821,8 +821,8 @@ export default function GroupStatementDetail() {
                         const isPaid = item.status === "COMPLETED" || item.status === "PAID" || item.isPaid === true;
                         const debtTitle = item.periodTitle || periodDebtTitle || item.transactionTitle || "Kỳ sao kê";
                         return (
-                          <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-800 min-w-[180px] max-w-[280px]">
+                          <tr key={idx} className="block md:table-row p-4 md:p-0 space-y-2 md:space-y-0 hover:bg-slate-50/70 transition-colors">
+                            <td className="block md:table-cell md:px-4 md:py-3 font-medium text-slate-800 md:min-w-[180px] md:max-w-[280px]">
                               <p className="font-semibold text-slate-900" title={item.transactionTitle ? `Giao dịch gốc: ${item.transactionTitle}` : debtTitle}>
                                 {debtTitle}
                               </p>
@@ -864,16 +864,16 @@ export default function GroupStatementDetail() {
                                 return null;
                               })()}
                             </td>
-                            <td className="px-4 py-3 font-semibold text-slate-700">
+                            <td data-label="Người nợ" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 font-semibold text-slate-700 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {item.debtorName}
                             </td>
-                            <td className="px-4 py-3 font-semibold text-slate-700">
+                            <td data-label="Người nhận" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 font-semibold text-slate-700 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {item.creditorName}
                             </td>
-                            <td className="px-4 py-3 font-bold text-red-600">
+                            <td data-label="Số tiền" className="flex md:table-cell items-center justify-between gap-2 md:px-4 md:py-3 font-bold text-red-600 before:content-[attr(data-label)] before:text-xs before:font-semibold before:text-slate-500 md:before:hidden">
                               {formatVND(item.amount)}
                             </td>
-                            <td className="px-4 py-3 max-w-[280px]">
+                            <td className="block md:table-cell md:px-4 md:py-3 md:max-w-[280px]">
                               {item.accountNumber ? (
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-1.5">

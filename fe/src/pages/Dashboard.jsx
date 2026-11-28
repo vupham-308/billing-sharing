@@ -446,10 +446,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-16 relative">
+    <div className="min-h-dvh bg-slate-50/60 pb-16 relative">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 text-xs sm:text-sm font-medium animate-bounce flex items-center gap-2">
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 text-xs sm:text-sm font-medium animate-bounce flex items-center gap-2">
           <span>{toastMessage}</span>
         </div>
       )}
@@ -462,7 +462,7 @@ export default function Dashboard() {
       />
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
         <HeroBalance
           user={user}
           totalOwedToYou={totalOwedToYou}

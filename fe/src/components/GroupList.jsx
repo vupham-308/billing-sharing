@@ -17,21 +17,21 @@ export default function GroupList({
   const handleOpenCreate = onOpenCreateGroup || onOpenCreateModal;
 
   return (
-    <section className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+    <section className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xs">
+      <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
             <Users className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Nhóm chi tiêu của bạn</h2>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">Nhóm chi tiêu của bạn</h2>
             <p className="text-xs text-slate-500">Bấm vào nhóm để xem sao kê hóa đơn chi tiết</p>
           </div>
         </div>
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+          className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70 px-3 py-2 rounded-lg transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Tạo nhóm</span>
